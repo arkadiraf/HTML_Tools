@@ -127,6 +127,14 @@
       font-size: 0.8rem;
     }
 
+    footer a {
+      color: var(--primary);
+      text-underline-offset: 0.2em;
+    }
+
+    footer a:hover,
+    footer a:focus-visible { color: var(--text); }
+
     @media (max-width: 680px) {
       body { display: block; }
       .tools { grid-template-columns: 1fr; }
@@ -179,7 +187,10 @@
       </a>
     </nav>
 
-    <footer>No installation · Client-side processing</footer>
+    <footer>
+      No installation · Client-side processing ·
+      <a href="https://github.com/arkadiraf/HTML_Tools" target="_blank" rel="noopener noreferrer">Download the source files from GitHub</a>
+    </footer>
   </main>
 </body>
 </html>
