@@ -576,15 +576,6 @@
         </div>
 
         <div class="form-group">
-          <label for="wiringConfig">Stator Circuit Wiring</label>
-          <select id="wiringConfig">
-            <option value="phase_series" selected>3-Phase Leg (2 Coils in Series)</option>
-            <option value="single">Single Coil Only (Individual Coil Testing)</option>
-            <option value="all_series">All Coils in Series (Full Stator Loop)</option>
-          </select>
-        </div>
-
-        <div class="form-group">
           <label for="ambientTemp">Ambient Temperature [°C]</label>
           <input type="number" id="ambientTemp" value="25" step="1" min="-40" max="120" />
         </div>
@@ -752,7 +743,6 @@
   const viaDrill = $('viaDrill');
   const viaPad = $('viaPad');
   const dcVoltage = $('dcVoltage');
-  const wiringConfig = $('wiringConfig');
   const ambientTemp = $('ambientTemp');
   const layerPills = $('layerPills');
   const pillMagnets = $('pillMagnets');
@@ -867,7 +857,7 @@
     updateUI();
   });
 
-  [motorDiameter, innerDiameter, statorCount, rotorMagnets, magnetDiameter, airgap, pcbThickness, magnetGrade, turnsPerLayer, traceWidth, traceSpacing, copperWeight, viaDrill, viaPad, dcVoltage, wiringConfig, ambientTemp].forEach(el => {
+  [motorDiameter, innerDiameter, statorCount, rotorMagnets, magnetDiameter, airgap, pcbThickness, magnetGrade, turnsPerLayer, traceWidth, traceSpacing, copperWeight, viaDrill, viaPad, dcVoltage, ambientTemp].forEach(el => {
     el.addEventListener('input', updateUI);
     el.addEventListener('change', updateUI);
   });
@@ -1278,7 +1268,6 @@
     const vDc = Math.max(0.01, parseFloat(dcVoltage.value) || 3.0);
     const copperUm = parseFloat(copperWeight.value) || 35;
     const amb = parseFloat(ambientTemp.value) || 25;
-    const wiring = wiringConfig.value;
 
     const wMm = geo.w;
     const tMm = copperUm / 1000;
@@ -1286,19 +1275,9 @@
     const areaM2 = areaMm2 * 1e-6;
 
     const coilLenM = geo.coilTotalLengthMm / 1000;
-    let connectedLengthM = coilLenM;
-    let numConnectedCoils = 1;
-
-    if (wiring === 'phase_series') {
-      numConnectedCoils = Math.max(1, Math.round(geo.N / 3)); // 2 coils per phase for 6 coils
-      connectedLengthM = coilLenM * numConnectedCoils;
-    } else if (wiring === 'all_series') {
-      numConnectedCoils = geo.N;
-      connectedLengthM = coilLenM * geo.N;
-    } else {
-      numConnectedCoils = 1;
-      connectedLengthM = coilLenM;
-    }
+    // Standard 3-Phase BLDC: coils per phase connected in series
+    const numConnectedCoils = Math.max(1, Math.round(geo.N / 3));
+    const connectedLengthM = coilLenM * numConnectedCoils;
 
     const rho20 = 1.724e-8;
     const alpha = 0.00393;
@@ -1310,7 +1289,7 @@
     // In rotating BLDC commutation, heat distributes over all coils across the full double-sided PCB surface.
     const statorSurfaceM2 = 2 * Math.PI * (Math.pow(geo.rOut, 2) - Math.pow(geo.rIn, 2)) * 1e-6;
     const heatTransferH = 18; // W/(m^2*K) natural convection air cooling
-    const effectiveThermalArea = statorSurfaceM2 * (wiring === 'single' ? 0.6 : 1.0);
+    const effectiveThermalArea = statorSurfaceM2;
 
     let opTemp = amb;
     let resistance = resCold;
@@ -1671,7 +1650,6 @@
         viaDrill: parseFloat(viaDrill.value) || 0.25,
         viaPad: parseFloat(viaPad.value) || 0.5,
         dcVoltage: parseFloat(dcVoltage.value) || 3,
-        wiringConfig: wiringConfig.value,
         ambientTemp: parseFloat(ambientTemp.value) || 25
       }
     };
@@ -1719,7 +1697,6 @@
     if (s.viaDrill != null) viaDrill.value = s.viaDrill;
     if (s.viaPad != null) viaPad.value = s.viaPad;
     if (s.dcVoltage != null) dcVoltage.value = s.dcVoltage;
-    if (s.wiringConfig != null) wiringConfig.value = s.wiringConfig;
     if (s.ambientTemp != null) ambientTemp.value = s.ambientTemp;
 
     if (s.shape && (s.shape === 'trapezoidal' || s.shape === 'circular')) {
