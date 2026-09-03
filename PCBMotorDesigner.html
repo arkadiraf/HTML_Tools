@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PCB Motor Coil Designer — 2-Layer 3-Phase Axial-Flux BLDC Stator</title>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-hover: #24344d;
+      --border: #334155;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --l1: #f43f5e;
+      --l2: #38bdf8;
+      --via: #fbbf24;
+      --mag-n: #ef4444;
+      --mag-s: #3b82f6;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent-green: #10b981;
+      --accent-warn: #f59e0b;
+      --accent-danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: clamp(0.4rem, 1.4vh, 0.85rem);
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1460px;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      flex: 0 0 auto;
+      text-align: center;
+      margin-bottom: clamp(0.25rem, 0.9vh, 0.45rem);
+    }
+
+    h1 {
+      margin: 0 0 0.15rem;
+      font-size: clamp(1.25rem, 2.5vh, 1.7rem);
+      letter-spacing: -0.5px;
+    }
+
+    h1 span { color: var(--primary); }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      font-size: clamp(0.72rem, 1.25vh, 0.84rem);
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: clamp(0.5rem, 1.2vw, 0.85rem);
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: clamp(0.5rem, 1.3vh, 0.85rem);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    .sidebar {
+      overflow-y: auto;
+      gap: clamp(0.4rem, 1vh, 0.7rem);
+    }
+
+    .sidebar::-webkit-scrollbar { width: 5px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .section-title {
+      font-size: clamp(0.72rem, 1.2vh, 0.78rem);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary);
+      margin: 0.2rem 0 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .form-group {
+      margin-bottom: clamp(0.22rem, 0.7vh, 0.45rem);
+      flex: 0 0 auto;
+    }
+
+    .form-group label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: clamp(0.7rem, 1.15vh, 0.78rem);
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 0.18rem;
+    }
+
+    .form-group label .hint {
+      color: var(--muted);
+      font-weight: normal;
+      font-size: 0.7rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    input[type="number"], select {
+      width: 100%;
+      background-color: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: clamp(0.26rem, 0.7vh, 0.4rem) 0.55rem;
+      font-size: clamp(0.78rem, 1.25vh, 0.85rem);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="number"]:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+
+    .segmented-control {
+      display: flex;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .segmented-control button {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: clamp(0.24rem, 0.65vh, 0.38rem) 0.35rem;
+      font-size: clamp(0.7rem, 1.15vh, 0.78rem);
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+
+    .segmented-control button.active {
+      background: var(--primary);
+      color: #0b1120;
+    }
+
+    .layer-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.2rem;
+    }
+
+    .layer-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 0.18rem 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    .layer-pill:hover { border-color: var(--primary); }
+    .layer-pill.active { background: #172554; border-color: var(--primary); }
+    .layer-pill .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .layer-pill.inactive { opacity: 0.4; }
+
+    .btn-export {
+      margin-top: 0.35rem;
+      padding: clamp(0.38rem, 0.95vh, 0.52rem) 0.8rem;
+      background: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background-color 0.2s;
+    }
+
+    .btn-export:hover { background: var(--primary); color: #0f172a; }
+
+    /* Viewport Panel */
+    .viewport-panel {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.35rem, 0.9vh, 0.6rem);
+    }
+
+    .viewport-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+    }
+
+    .model-info { min-width: 0; }
+
+    .model-title {
+      font-size: clamp(0.82rem, 1.45vh, 0.95rem);
+      font-weight: 700;
+      color: var(--primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .model-meta {
+      font-size: clamp(0.68rem, 1.15vh, 0.76rem);
+      color: var(--muted);
+    }
+
+    .canvas-controls {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
+    .btn-sm {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.25rem 0.55rem;
+      background: #0b1120;
+      color: var(--text);
+      font-size: 0.74rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+
+    .btn-sm:hover {
+      border-color: var(--primary);
+      background: var(--card-hover);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      flex: 1 1 0;
+      min-height: 220px;
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    canvas.dragging { cursor: grabbing; }
+
+    .coords-overlay {
+      position: absolute;
+      bottom: 6px;
+      right: 8px;
+      font: 0.7rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.8);
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    .legend-overlay {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 0.67rem;
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.88);
+      padding: 4px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    /* Results Dashboard Grid */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(0.28rem, 0.75vh, 0.45rem);
+      flex: 0 0 auto;
+    }
+
+    .result-box {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: clamp(0.25rem, 0.7vh, 0.42rem) clamp(0.35rem, 0.8vw, 0.6rem);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .result-box .label {
+      font-size: clamp(0.6rem, 1.05vh, 0.66rem);
+      text-transform: uppercase;
+      letter-spacing: 0.35px;
+      color: var(--muted);
+      margin-bottom: 0.1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .result-box .value {
+      font-size: clamp(0.92rem, 1.85vh, 1.12rem);
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.15;
+    }
+
+    .result-box .unit {
+      font-size: clamp(0.66rem, 1.05vh, 0.74rem);
+      font-weight: normal;
+      color: var(--muted);
+      margin-left: 0.2rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex: 0 0 auto;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: clamp(0.68rem, 1.05vh, 0.75rem);
+      padding: 0.18rem 0.55rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .badge-ok { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-warn { background: rgba(245, 158, 11, 0.15); color: var(--accent-warn); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    footer {
+      flex: 0 0 auto;
+      margin-top: clamp(0.18rem, 0.7vh, 0.4rem);
+      text-align: center;
+      font-size: clamp(0.64rem, 1.05vh, 0.72rem);
+      color: var(--muted);
+    }
+
+    @media (max-width: 920px) {
+      body { height: auto; min-height: 100dvh; overflow-y: auto; padding: 0.75rem; }
+      .container { height: auto; }
+      .main-layout { grid-template-columns: 1fr; }
+      .canvas-wrap { height: 50vh; min-height: 320px; }
+      .results-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-height: 650px) and (min-width: 921px) {
+      .subtitle { display: none; }
+      header { margin-bottom: 0.12rem; }
+      .card { padding: 0.4rem 0.6rem; }
+      .form-group { margin-bottom: 0.18rem; }
+      .results-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>PCB Motor <span>Coil Designer</span></h1>
+    <p class="subtitle">2-Layer 3-Phase Axial-Flux BLDC Stator Designer &amp; Simulator</p>
+  </header>
+
+  <main class="main-layout">
+    <!-- Left Configuration Sidebar -->
+    <aside class="card sidebar">
+      <!-- 1. Stator Dimensions & Architecture -->
+      <div>
+        <div class="section-title">
+          <span>1. Motor &amp; Stator Geometry</span>
+          <span style="font-size:0.68rem; color:var(--muted); font-weight:normal;">Ø50mm / Din 20mm</span>
+        </div>
+
+        <div class="form-group">
+          <label for="motorDiameter">PCB Outer Diameter [mm]</label>
+          <input type="number" id="motorDiameter" value="50" step="1" min="15" max="300" />
+        </div>
+
+        <div class="form-group">
+          <label for="innerDiameter">Inner Bore Diameter [mm] <span class="hint" id="pitchDiamHint">Pitch: 35.0 mm</span></label>
+          <div class="input-row">
+            <input type="number" id="innerDiameter" value="20" step="0.1" min="5" max="250" />
+            <button type="button" class="btn-sm" id="btnOptDin" title="Calculate optimal Din = Dout / sqrt(3) for maximum torque">Opt</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="statorCount">Stator Coils</label>
+          <input type="number" id="statorCount" value="6" step="1" min="3" max="36" />
+        </div>
+
+        <div class="form-group">
+          <label>Coil Footprint Topology</label>
+          <div class="segmented-control" id="shapeToggle">
+            <button type="button" class="active" data-val="trapezoidal">Trapezoidal (Sector Wedge)</button>
+            <button type="button" data-val="circular">Circular Spiral</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Rotor Magnets & Airgap -->
+      <div>
+        <div class="section-title">
+          <span>2. Rotor Magnets &amp; Airgap</span>
+          <span style="font-size:0.68rem; color:var(--muted); font-weight:normal;">8 Magnets · Ø10mm</span>
+        </div>
+
+        <div class="input-row" style="margin-bottom: clamp(0.22rem, 0.7vh, 0.45rem);">
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">Magnets Count</label>
+            <input type="number" id="rotorMagnets" value="8" step="2" min="4" max="48" title="Number of rotor magnets" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">Diameter [mm]</label>
+            <input type="number" id="magnetDiameter" value="10" step="0.5" min="2" max="30" title="Magnet diameter [mm]" />
+          </div>
+        </div>
+
+        <div class="input-row" style="margin-bottom: clamp(0.22rem, 0.7vh, 0.45rem);">
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">Airgap [mm]</label>
+            <input type="number" id="airgap" value="1.0" step="0.1" min="0.2" max="5.0" title="Airgap between coils and magnets [mm]" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">PCB Thickness [mm]</label>
+            <input type="number" id="pcbThickness" value="1.0" step="0.1" min="0.4" max="3.2" title="PCB Stator Thickness [mm]" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="magnetGrade">Magnet Grade</label>
+          <select id="magnetGrade">
+            <option value="N52" selected>N52 NdFeB (High Grade, Br = 1.44 T)</option>
+            <option value="N50">N50 NdFeB (Br = 1.40 T)</option>
+            <option value="N48">N48 NdFeB (Br = 1.38 T)</option>
+            <option value="N42">N42 NdFeB (Br = 1.30 T)</option>
+            <option value="N35">N35 NdFeB (Br = 1.18 T)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Rotor Configuration</label>
+          <div class="segmented-control" id="rotorConfigToggle">
+            <button type="button" class="active" data-val="dual">Dual Rotor (Sandwich)</button>
+            <button type="button" data-val="single">Single Rotor</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Layer Stackup & Trace (2-Layer Dedicated) -->
+      <div>
+        <div class="section-title">
+          <span>3. 2-Layer Stackup &amp; Trace</span>
+        </div>
+
+        <div class="form-group">
+          <label for="turnsPerLayer">Turns per Layer <span class="hint" id="maxTurnsHint">Rec: 15–19 (Max: ~19)</span></label>
+          <div class="input-row">
+            <input type="number" id="turnsPerLayer" value="19" step="1" min="1" max="50" />
+            <button type="button" class="btn-sm" id="btnMaxTurns" title="Set to maximum possible turns">Max</button>
+          </div>
+        </div>
+
+        <div class="input-row" style="margin-bottom: clamp(0.22rem, 0.7vh, 0.45rem);">
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">Trace Width [mm]</label>
+            <input type="number" id="traceWidth" value="0.127" step="0.001" min="0.05" max="3.0" title="Trace Width [mm]" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:0.7rem; color:var(--text); margin-bottom:2px; display:block;">Trace Clearance [mm]</label>
+            <input type="number" id="traceSpacing" value="0.127" step="0.001" min="0.05" max="2.0" title="Trace Clearance [mm]" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="copperWeight">Copper Thickness / Weight</label>
+          <select id="copperWeight">
+            <option value="17.5">0.5 oz (17.5 µm / 0.7 mil)</option>
+            <option value="35" selected>1.0 oz (35.0 µm / 1.4 mil) — Recommended</option>
+            <option value="70">2.0 oz (70.0 µm / 2.8 mil) — High Current</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="viaDrill">Center Via Drill / Pad [mm]</label>
+          <div class="input-row">
+            <input type="number" id="viaDrill" value="0.25" step="0.05" min="0.15" max="1.5" title="Drill Hole [mm]" />
+            <input type="number" id="viaPad" value="0.5" step="0.05" min="0.25" max="3.0" title="Outer Pad [mm]" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Electrical & Thermal -->
+      <div>
+        <div class="section-title">
+          <span>4. Electrical &amp; Thermal</span>
+        </div>
+
+        <div class="form-group">
+          <label for="dcVoltage">DC Supply Voltage [V]</label>
+          <input type="number" id="dcVoltage" value="3" step="0.1" min="0.1" max="100" />
+        </div>
+
+        <div class="form-group">
+          <label for="wiringConfig">Stator Circuit Wiring</label>
+          <select id="wiringConfig">
+            <option value="phase_series" selected>3-Phase Leg (2 Coils in Series)</option>
+            <option value="single">Single Coil Only (Individual Coil Testing)</option>
+            <option value="all_series">All Coils in Series (Full Stator Loop)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ambientTemp">Ambient Temperature [°C]</label>
+          <input type="number" id="ambientTemp" value="25" step="1" min="-40" max="120" />
+        </div>
+      </div>
+
+      <!-- 5. Layer Visibility & Overlays -->
+      <div>
+        <div class="section-title">
+          <span>5. Overlays &amp; Visibility</span>
+        </div>
+        <div class="layer-pills" id="layerPills">
+          <span class="layer-pill active" data-layer="L1"><span class="dot" style="background:var(--l1);"></span> L1 Top</span>
+          <span class="layer-pill active" data-layer="L2"><span class="dot" style="background:var(--l2);"></span> L2 Bottom</span>
+          <span class="layer-pill active" data-layer="VIAS"><span class="dot" style="background:var(--via);"></span> Center Via</span>
+          <span class="layer-pill active" data-layer="MAGNETS" id="pillMagnets"><span class="dot" style="background:var(--mag-n);"></span> Magnets</span>
+          <span class="layer-pill active" data-layer="PHASES" id="pillPhases"><span class="dot" style="background:#a855f7;"></span> Phase A-B-C</span>
+        </div>
+      </div>
+
+      <!-- 6. Save / Load & Export Actions -->
+      <div style="display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.25rem;">
+        <div style="display: flex; gap: 0.35rem;">
+          <button type="button" class="btn-sm" id="btnExportJson" style="flex: 1; padding: 0.42rem 0.5rem; justify-content: center; display: flex; align-items: center; gap: 0.35rem;" title="Save current parameters to a JSON file">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+            Save JSON
+          </button>
+          <button type="button" class="btn-sm" id="btnLoadJson" style="flex: 1; padding: 0.42rem 0.5rem; justify-content: center; display: flex; align-items: center; gap: 0.35rem;" title="Load parameters from a JSON file">
+            <svg width="13" height="13" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
+            Load JSON
+          </button>
+          <input type="file" id="fileInputJson" accept=".json,application/json" style="display: none;" />
+        </div>
+
+        <button type="button" class="btn-export" id="btnExportDxf" style="margin-top: 0;">
+          <svg width="15" height="15" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+          Export CAD DXF (2-Layer Stator + Magnets)
+        </button>
+      </div>
+    </aside>
+
+    <!-- Right Interactive Viewport & Results Dashboard -->
+    <section class="card viewport-panel">
+      <div class="viewport-head">
+        <div class="model-info">
+          <div class="model-title" id="modelTitle">Ø50 mm PCB Motor · 6 Stators · 8 Rotor Magnets · 2 Layers</div>
+          <div class="model-meta" id="modelMeta">Dpitch 35.0 mm · Center Via · 19 turns/layer (38 turns/coil)</div>
+        </div>
+
+        <div class="canvas-controls">
+          <button type="button" class="btn-sm" id="btnViewMode">Focus 1 Coil</button>
+          <button type="button" class="btn-sm" id="btnZoomOut" title="Zoom Out">−</button>
+          <button type="button" class="btn-sm" id="btnFit" title="Fit to Drawing">Fit</button>
+          <button type="button" class="btn-sm" id="btnZoomIn" title="Zoom In">+</button>
+        </div>
+      </div>
+
+      <!-- Canvas Viewport -->
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="canvas"></canvas>
+
+        <div class="legend-overlay" id="legendOverlay">
+          <div class="legend-item"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--l1);"></span> L1 Top (Inward Spiral to Center Via)</div>
+          <div class="legend-item"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--l2);"></span> L2 Bottom (Outward Spiral from Center Via)</div>
+          <div class="legend-item"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--via);"></span> Center Via (r=17.5mm, θ=0°)</div>
+          <div class="legend-item" id="legMag"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--mag-n);"></span> Rotor Magnets (8× Ø10mm N-S)</div>
+        </div>
+
+        <div class="coords-overlay" id="coordsOverlay">X: 0.00 mm | Y: 0.00 mm | Pitch: Ø35.0 mm</div>
+      </div>
+
+      <!-- Results Grid (12 Cards: Electromechanical, Electrical & Thermal) -->
+      <div class="results-grid">
+        <!-- Row 1: Electromechanical & Torque -->
+        <div class="result-box">
+          <span class="label">Stall Torque [mNm]</span>
+          <span class="value" id="torqueVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Torque Constant Kt [mNm/A]</span>
+          <span class="value" id="ktVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Velocity Constant Kv [RPM/V]</span>
+          <span class="value" id="kvVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">No-Load Speed [RPM]</span>
+          <span class="value" id="rpmVal">--</span>
+        </div>
+
+        <!-- Row 2: Electrical & Power Output -->
+        <div class="result-box">
+          <span class="label">Phase Resistance [Ω]</span>
+          <span class="value" id="resVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Peak Stall Current [A]</span>
+          <span class="value" id="currentVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Phase Dissipation [W]</span>
+          <span class="value" id="powerVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Peak Mech Power [W]</span>
+          <span class="value" id="pMechVal">--</span>
+        </div>
+
+        <!-- Row 3: Thermal & Geometry -->
+        <div class="result-box">
+          <span class="label">Temp Rise &amp; Operating [°C]</span>
+          <span class="value" id="tempVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Current Density [A/mm²]</span>
+          <span class="value" id="densityVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Phase Trace Length [m]</span>
+          <span class="value" id="lenVal">--</span>
+        </div>
+        <div class="result-box">
+          <span class="label">Phase Inductance [µH]</span>
+          <span class="value" id="inductanceVal">--</span>
+        </div>
+      </div>
+
+      <!-- Status row -->
+      <div class="status-row">
+        <div id="statusBadgeContainer"></div>
+        <div style="font-size: 0.7rem; color: var(--muted);" id="statorSummaryText"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    PCB Motor Coil Designer · 2-Layer 3-Phase Axial-Flux BLDC Stator
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // UI Element Selectors
+  const $ = id => document.getElementById(id);
+  const motorDiameter = $('motorDiameter');
+  const innerDiameter = $('innerDiameter');
+  const btnOptDin = $('btnOptDin');
+  const pitchDiamHint = $('pitchDiamHint');
+  const statorCount = $('statorCount');
+  const shapeToggle = $('shapeToggle');
+  const rotorMagnets = $('rotorMagnets');
+  const magnetDiameter = $('magnetDiameter');
+  const airgap = $('airgap');
+  const pcbThickness = $('pcbThickness');
+  const magnetGrade = $('magnetGrade');
+  const rotorConfigToggle = $('rotorConfigToggle');
+  const turnsPerLayer = $('turnsPerLayer');
+  const btnMaxTurns = $('btnMaxTurns');
+  const maxTurnsHint = $('maxTurnsHint');
+  const traceWidth = $('traceWidth');
+  const traceSpacing = $('traceSpacing');
+  const copperWeight = $('copperWeight');
+  const viaDrill = $('viaDrill');
+  const viaPad = $('viaPad');
+  const dcVoltage = $('dcVoltage');
+  const wiringConfig = $('wiringConfig');
+  const ambientTemp = $('ambientTemp');
+  const layerPills = $('layerPills');
+  const pillMagnets = $('pillMagnets');
+  const pillPhases = $('pillPhases');
+  const legMag = $('legMag');
+  const btnExportDxf = $('btnExportDxf');
+  const btnExportJson = $('btnExportJson');
+  const btnLoadJson = $('btnLoadJson');
+  const fileInputJson = $('fileInputJson');
+
+  const modelTitle = $('modelTitle');
+  const modelMeta = $('modelMeta');
+  const btnViewMode = $('btnViewMode');
+  const btnZoomIn = $('btnZoomIn');
+  const btnZoomOut = $('btnZoomOut');
+  const btnFit = $('btnFit');
+  const canvasWrap = $('canvasWrap');
+  const canvas = $('canvas');
+  const ctx = canvas.getContext('2d');
+  const coordsOverlay = $('coordsOverlay');
+
+  const torqueVal = $('torqueVal');
+  const ktVal = $('ktVal');
+  const kvVal = $('kvVal');
+  const rpmVal = $('rpmVal');
+  const pMechVal = $('pMechVal');
+  const resVal = $('resVal');
+  const currentVal = $('currentVal');
+  const powerVal = $('powerVal');
+  const tempVal = $('tempVal');
+  const densityVal = $('densityVal');
+  const lenVal = $('lenVal');
+  const inductanceVal = $('inductanceVal');
+  const statusBadgeContainer = $('statusBadgeContainer');
+  const statorSummaryText = $('statorSummaryText');
+
+  // Application State (2-Layer Dedicated)
+  const state = {
+    shape: 'trapezoidal', // 'trapezoidal' | 'circular'
+    rotorConfig: 'dual',  // 'dual' | 'single'
+    layers: 2,            // 2 layers only
+    focusSingleCoil: false,
+    visibleLayers: { L1: true, L2: true, VIAS: true, MAGNETS: true, PHASES: true },
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    drag: false,
+    dragX: 0,
+    dragY: 0,
+    geometry: null
+  };
+
+  const LAYER_COLORS = {
+    L1: '#f43f5e',   // Rose
+    L2: '#38bdf8',   // Sky Blue
+    VIAS: '#fbbf24'  // Gold
+  };
+
+  const PHASE_NAMES = ['Phase A', 'Phase B', 'Phase C'];
+  const PHASE_COLORS = ['#ef4444', '#3b82f6', '#10b981'];
+
+  // Event Listeners for Segmented Controls
+  shapeToggle.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      shapeToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.shape = btn.getAttribute('data-val');
+      updateUI();
+    });
+  });
+
+  rotorConfigToggle.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      rotorConfigToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.rotorConfig = btn.getAttribute('data-val');
+      updateUI();
+    });
+  });
+
+  layerPills.querySelectorAll('.layer-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const layer = pill.getAttribute('data-layer');
+      state.visibleLayers[layer] = !state.visibleLayers[layer];
+      pill.classList.toggle('active', state.visibleLayers[layer]);
+      pill.classList.toggle('inactive', !state.visibleLayers[layer]);
+      if (layer === 'MAGNETS' && legMag) {
+        legMag.style.display = state.visibleLayers[layer] ? 'flex' : 'none';
+      }
+      render();
+    });
+  });
+
+  btnViewMode.addEventListener('click', () => {
+    state.focusSingleCoil = !state.focusSingleCoil;
+    btnViewMode.textContent = state.focusSingleCoil ? 'Full Stator' : 'Focus 1 Coil';
+    fitView();
+  });
+
+  btnMaxTurns.addEventListener('click', () => {
+    if (state.geometry && state.geometry.maxTurns) {
+      turnsPerLayer.value = state.geometry.maxTurns;
+      updateUI();
+    }
+  });
+
+  // Calculate Optimal Inner Diameter: Din = Dout / sqrt(3)
+  btnOptDin.addEventListener('click', () => {
+    const dOut = parseFloat(motorDiameter.value) || 50;
+    const optimalDin = (dOut / Math.sqrt(3)).toFixed(1);
+    innerDiameter.value = optimalDin;
+    updateUI();
+  });
+
+  [motorDiameter, innerDiameter, statorCount, rotorMagnets, magnetDiameter, airgap, pcbThickness, magnetGrade, turnsPerLayer, traceWidth, traceSpacing, copperWeight, viaDrill, viaPad, dcVoltage, wiringConfig, ambientTemp].forEach(el => {
+    el.addEventListener('input', updateUI);
+    el.addEventListener('change', updateUI);
+  });
+
+  btnExportDxf.addEventListener('click', exportDxfFile);
+  btnExportJson.addEventListener('click', exportJsonConfig);
+  btnLoadJson.addEventListener('click', () => {
+    fileInputJson.value = '';
+    fileInputJson.click();
+  });
+  fileInputJson.addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadJsonFile(file);
+  });
+
+  // Canvas Drag & Zoom
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = canvasWrap.getBoundingClientRect();
+    zoomAt(e.deltaY < 0 ? 1.15 : 0.87, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  canvas.addEventListener('pointerdown', e => {
+    state.drag = true;
+    state.dragX = e.clientX - state.panX;
+    state.dragY = e.clientY - state.panY;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    const r = canvasWrap.getBoundingClientRect();
+    if (state.drag) {
+      state.panX = e.clientX - state.dragX;
+      state.panY = e.clientY - state.dragY;
+      render();
+    }
+    const cad = toCad(e.clientX - r.left, e.clientY - r.top);
+    const rad = Math.hypot(cad.x, cad.y);
+    const deg = ((Math.atan2(cad.y, cad.x) * 180 / Math.PI) + 360) % 360;
+    const dPitch = (parseFloat(motorDiameter.value) + parseFloat(innerDiameter.value)) / 2;
+    coordsOverlay.textContent = `X: ${cad.x.toFixed(2)} mm | Y: ${cad.y.toFixed(2)} mm | R: ${rad.toFixed(2)} mm | θ: ${deg.toFixed(1)}° | Dpitch: Ø${dPitch.toFixed(1)} mm`;
+  });
+
+  const endDrag = e => {
+    state.drag = false;
+    canvas.classList.remove('dragging');
+    if (e.pointerId != null && canvas.hasPointerCapture(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId);
+    }
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  btnZoomIn.onclick = () => {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 400;
+    zoomAt(1.25, rw / 2, rh / 2);
+  };
+  btnZoomOut.onclick = () => {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 400;
+    zoomAt(0.8, rw / 2, rh / 2);
+  };
+  btnFit.onclick = fitView;
+
+  function toScreen(p) {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 400;
+    return {
+      x: rw / 2 + state.panX + p.x * state.zoom,
+      y: rh / 2 + state.panY - p.y * state.zoom
+    };
+  }
+
+  function toCad(sx, sy) {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 400;
+    return {
+      x: (sx - rw / 2 - state.panX) / state.zoom,
+      y: (rh / 2 + state.panY - sy) / state.zoom
+    };
+  }
+
+  function zoomAt(factor, sx, sy) {
+    const before = toCad(sx, sy);
+    state.zoom = Math.max(0.01, Math.min(200, state.zoom * factor));
+    const after = toScreen(before);
+    state.panX += sx - after.x;
+    state.panY += sy - after.y;
+    render();
+  }
+
+  let initialFitDone = false;
+  function resizeCanvas() {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 0;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 0;
+    if (rw <= 0 || rh <= 0) return;
+    const d = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rw * d));
+    canvas.height = Math.max(1, Math.round(rh * d));
+    if (!initialFitDone) {
+      initialFitDone = true;
+      fitView();
+    } else {
+      render();
+    }
+  }
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(resizeCanvas).observe(canvasWrap);
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function fitView() {
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 50 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 50 ? r.height : canvasWrap.clientHeight) || 400;
+    const dOut = parseFloat(motorDiameter.value) || 50;
+    const margin = 28;
+
+    let w = dOut, h = dOut, cx = 0, cy = 0;
+    if (state.focusSingleCoil && state.geometry && state.geometry.singleCoilBounds) {
+      const b = state.geometry.singleCoilBounds;
+      w = Math.max(5, b.maxX - b.minX);
+      h = Math.max(5, b.maxY - b.minY);
+      cx = (b.minX + b.maxX) / 2;
+      cy = (b.minY + b.maxY) / 2;
+    }
+
+    const availW = Math.max(20, rw - margin * 2);
+    const availH = Math.max(20, rh - margin * 2);
+    state.zoom = Math.min(availW / w, availH / h);
+    state.panX = -cx * state.zoom;
+    state.panY = cy * state.zoom;
+    render();
+  }
+
+  // Geometry Engine
+  function generateGeometry() {
+    const dOut = Math.max(15, parseFloat(motorDiameter.value) || 50);
+    const dIn = Math.min(dOut - 4, Math.max(5, parseFloat(innerDiameter.value) || 20));
+    const N = Math.max(3, parseInt(statorCount.value, 10) || 6);
+    const nMag = Math.max(4, parseInt(rotorMagnets.value, 10) || 8);
+    const dMag = Math.max(2, parseFloat(magnetDiameter.value) || 10);
+
+    const w = Math.max(0.05, parseFloat(traceWidth.value) || 0.127);
+    const s = Math.max(0.05, parseFloat(traceSpacing.value) || 0.127);
+    const vDrill = Math.max(0.15, parseFloat(viaDrill.value) || 0.25);
+    const vPad = Math.max(vDrill + 0.1, parseFloat(viaPad.value) || 0.5);
+
+    const rOut = dOut / 2;
+    const rIn = dIn / 2;
+    const dPitch = (dOut + dIn) / 2;
+    const rMid = dPitch / 2;
+    const optDin = (dOut / Math.sqrt(3)).toFixed(1);
+    pitchDiamHint.textContent = `Pitch: Ø${dPitch.toFixed(1)} mm (Opt: ${optDin}mm)`;
+
+    const clearanceMargin = 1.2;
+    const rMax = rOut - clearanceMargin;
+    const rMin = rIn + clearanceMargin;
+    const delta = w + s;
+    const pitch = 2 * Math.PI / N;
+    const gapAngle = Math.max(0.04, 1.0 / rMin);
+    const span = pitch - gapAngle;
+
+    // Maximum turns calculation ensuring center clearance around via pad
+    let maxTurns = 1;
+    if (state.shape === 'trapezoidal') {
+      const radialHalf = (rMax - rMin) / 2;
+      const tangentialHalf = rMin * (span / 2);
+      const safeRoom = Math.min(radialHalf, tangentialHalf) - (vPad / 2 + s);
+      maxTurns = Math.max(1, Math.floor(safeRoom / delta));
+    } else {
+      const maxRadiusCirc = Math.min((rMax - rMin) / 2, rMid * Math.sin(pitch / 2) - 1.0);
+      maxTurns = Math.max(1, Math.floor((maxRadiusCirc - (vPad / 2 + s)) / delta));
+    }
+
+    maxTurnsHint.textContent = `Rec: 15–19 (Max: ~${maxTurns})`;
+    const userTurns = Math.max(1, Math.min(maxTurns, parseInt(turnsPerLayer.value, 10) || 19));
+    const layersCount = 2; // Dedicated 2-layer design
+
+    // Generate Base Coil (2 Layers with Center Via)
+    const baseCoil = state.shape === 'trapezoidal'
+      ? generateTrapezoidCoil(rMax, rMin, pitch, userTurns, w, s, delta, rMid, vDrill, vPad)
+      : generateCircularCoil(rMax, rMin, pitch, userTurns, w, s, delta, rMid, vDrill, vPad);
+
+    // Stator Coils array with Phase tags and alternating polarity
+    const stators = [];
+    let singleCoilBounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+
+    for (let k = 0; k < N; k++) {
+      const angle = k * pitch;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      // Phase identification for 3-phase (A, B, C, A, B, C...)
+      const phaseIdx = k % 3; // 0=A, 1=B, 2=C
+      const phaseName = PHASE_NAMES[phaseIdx];
+      // Alternating pole polarity for each phase: A+, B+, C+, A-, B-, C-
+      const phasePolarity = (Math.floor(k / 3) % 2 === 0) ? '+' : '−';
+      const label = `Phase ${String.fromCharCode(65 + phaseIdx)}${phasePolarity}`;
+
+      const statorLayers = {
+        L1: baseCoil.layers.L1.map(pt => ({
+          x: pt.x * cosA - pt.y * sinA,
+          y: pt.x * sinA + pt.y * cosA
+        })),
+        L2: baseCoil.layers.L2.map(pt => ({
+          x: pt.x * cosA - pt.y * sinA,
+          y: pt.x * sinA + pt.y * cosA
+        }))
+      };
+
+      const statorVias = baseCoil.vias.map(v => ({
+        x: v.x * cosA - v.y * sinA,
+        y: v.x * sinA + v.y * cosA,
+        drill: v.drill,
+        pad: v.pad,
+        type: v.type
+      }));
+
+      stators.push({
+        index: k,
+        angle,
+        phaseIdx,
+        phaseName,
+        phasePolarity,
+        label,
+        centerPt: { x: rMid * cosA, y: rMid * sinA },
+        layers: statorLayers,
+        vias: statorVias
+      });
+    }
+
+    // Bounds for Single Coil
+    if (stators[0]) {
+      ['L1', 'L2'].forEach(lName => {
+        stators[0].layers[lName].forEach(p => {
+          singleCoilBounds.minX = Math.min(singleCoilBounds.minX, p.x);
+          singleCoilBounds.minY = Math.min(singleCoilBounds.minY, p.y);
+          singleCoilBounds.maxX = Math.max(singleCoilBounds.maxX, p.x);
+          singleCoilBounds.maxY = Math.max(singleCoilBounds.maxY, p.y);
+        });
+      });
+    }
+
+    // Rotor Magnets array (Fixed optimal radial alignment on pitch circle)
+    const magnets = [];
+    const magPitchAngle = (2 * Math.PI) / nMag;
+
+    for (let m = 0; m < nMag; m++) {
+      const mAngle = m * magPitchAngle;
+      const mx = rMid * Math.cos(mAngle);
+      const my = rMid * Math.sin(mAngle);
+      const isNorth = (m % 2 === 0);
+      magnets.push({
+        index: m,
+        angle: mAngle,
+        x: mx,
+        y: my,
+        r: dMag / 2,
+        pole: isNorth ? 'N' : 'S',
+        color: isNorth ? '#ef4444' : '#3b82f6'
+      });
+    }
+
+    return {
+      dOut, dIn, rOut, rIn, dPitch, rMid, N, nMag, dMag,
+      userTurns, maxTurns, layersCount, stators, magnets,
+      singleCoilBounds, coilTotalLengthMm: baseCoil.totalLength,
+      w, s, vDrill, vPad, rMax, rMin
+    };
+  }
+
+  // True 4-Sided Non-Intersecting Trapezoidal Coil Path Generator (2 Layers with Center Via)
+  function generateTrapezoidCoil(rMax, rMin, pitch, turns, w, s, delta, rMid, vDrill, vPad) {
+    const gapAngle = Math.max(0.04, 1.0 / rMin);
+    const span = pitch - gapAngle;
+    const ptsL1 = [];
+
+    // Layer 1: Inward Spiral terminating at the Center Via (rMid, 0)
+    for (let j = 0; j < turns; j++) {
+      const ro = rMax - j * delta;
+      const ri = rMin + j * delta;
+      const dTangential = j * delta;
+      const angO = Math.max(0.02, (span / 2) - (dTangential / ro));
+      const angI = Math.max(0.02, (span / 2) - (dTangential / ri));
+
+      const roNext = rMax - (j + 1) * delta;
+      const angONext = Math.max(0.02, (span / 2) - ((j + 1) * delta / roNext));
+      const angINext = Math.max(0.02, (span / 2) - ((j + 1) * delta / ri));
+
+      // 1. Top Outer Arc: from -angO to +angO at radius ro
+      const steps = 14;
+      for (let st = 0; st <= steps; st++) {
+        const th = -angO + (2 * angO) * (st / steps);
+        ptsL1.push({ x: ro * Math.cos(th), y: ro * Math.sin(th) });
+      }
+
+      // 2. Right Radial Leg: from ro down to ri
+      const legSteps = 8;
+      for (let st = 1; st <= legSteps; st++) {
+        const t = st / legSteps;
+        const r = ro + (ri - ro) * t;
+        const th = angO + (angI - angO) * t;
+        ptsL1.push({ x: r * Math.cos(th), y: r * Math.sin(th) });
+      }
+
+      // 3. Bottom Inner Arc: from +angI back to -angINext
+      for (let st = 1; st <= steps; st++) {
+        const th = angI - (angI + angINext) * (st / steps);
+        ptsL1.push({ x: ri * Math.cos(th), y: ri * Math.sin(th) });
+      }
+
+      // 4. Left Radial Leg: from ri up to roNext (or to center via on last turn)
+      if (j < turns - 1) {
+        for (let st = 1; st <= legSteps; st++) {
+          const t = st / legSteps;
+          const r = ri + (roNext - ri) * t;
+          const th = -angINext + (-angONext - (-angINext)) * t;
+          ptsL1.push({ x: r * Math.cos(th), y: r * Math.sin(th) });
+        }
+      } else {
+        // Last turn routes directly into the Center Via at (rMid, 0)
+        ptsL1.push({ x: rMid, y: 0 });
+      }
+    }
+
+    // Layer 2: Outward Spiral starting from the Center Via (rMid, 0)
+    // Mirrored along theta=0 axis so current continues in the same magnetic rotational sense (additive flux)
+    const ptsL2 = [];
+    for (let i = ptsL1.length - 1; i >= 0; i--) {
+      ptsL2.push({ x: ptsL1[i].x, y: -ptsL1[i].y });
+    }
+
+    let totalLength = 0;
+    for (let i = 1; i < ptsL1.length; i++) {
+      totalLength += Math.hypot(ptsL1[i].x - ptsL1[i - 1].x, ptsL1[i].y - ptsL1[i - 1].y);
+    }
+    for (let i = 1; i < ptsL2.length; i++) {
+      totalLength += Math.hypot(ptsL2[i].x - ptsL2[i - 1].x, ptsL2[i].y - ptsL2[i - 1].y);
+    }
+
+    const vias = [
+      { x: rMid, y: 0, drill: vDrill, pad: vPad, type: 'center' }
+    ];
+
+    return {
+      layers: { L1: ptsL1, L2: ptsL2 },
+      vias,
+      totalLength
+    };
+  }
+
+  // Circular Spiral Generator (2 Layers with Center Via)
+  function generateCircularCoil(rMax, rMin, pitch, turns, w, s, delta, rMid, vDrill, vPad) {
+    const maxRadiusCirc = Math.min((rMax - rMin) / 2, rMid * Math.sin(pitch / 2) - 1.0);
+    const minRadiusCirc = vPad / 2 + s;
+    const ptsL1 = [];
+    const stepsPerTurn = 40;
+    const totalSteps = turns * stepsPerTurn;
+
+    // Layer 1: Inward circular spiral to (rMid, 0)
+    for (let st = 0; st <= totalSteps; st++) {
+      const t = st / totalSteps;
+      const r = maxRadiusCirc - (maxRadiusCirc - minRadiusCirc) * t;
+      const theta = t * (turns * 2 * Math.PI);
+      ptsL1.push({
+        x: rMid + r * Math.cos(theta),
+        y: r * Math.sin(theta)
+      });
+    }
+    ptsL1.push({ x: rMid, y: 0 }); // Center via terminal
+
+    // Layer 2: Outward circular spiral starting from (rMid, 0)
+    const ptsL2 = [];
+    for (let i = ptsL1.length - 1; i >= 0; i--) {
+      ptsL2.push({ x: ptsL1[i].x, y: -ptsL1[i].y });
+    }
+
+    let totalLength = 0;
+    for (let i = 1; i < ptsL1.length; i++) {
+      totalLength += Math.hypot(ptsL1[i].x - ptsL1[i - 1].x, ptsL1[i].y - ptsL1[i - 1].y);
+    }
+    for (let i = 1; i < ptsL2.length; i++) {
+      totalLength += Math.hypot(ptsL2[i].x - ptsL2[i - 1].x, ptsL2[i].y - ptsL2[i - 1].y);
+    }
+
+    const vias = [
+      { x: rMid, y: 0, drill: vDrill, pad: vPad, type: 'center' }
+    ];
+
+    return {
+      layers: { L1: ptsL1, L2: ptsL2 },
+      vias,
+      totalLength
+    };
+  }
+
+  // Electrical & Thermal Calculations
+  function computeElectrical(geo) {
+    const vDc = Math.max(0.01, parseFloat(dcVoltage.value) || 3.0);
+    const copperUm = parseFloat(copperWeight.value) || 35;
+    const amb = parseFloat(ambientTemp.value) || 25;
+    const wiring = wiringConfig.value;
+
+    const wMm = geo.w;
+    const tMm = copperUm / 1000;
+    const areaMm2 = wMm * tMm;
+    const areaM2 = areaMm2 * 1e-6;
+
+    const coilLenM = geo.coilTotalLengthMm / 1000;
+    let connectedLengthM = coilLenM;
+    let numConnectedCoils = 1;
+
+    if (wiring === 'phase_series') {
+      numConnectedCoils = Math.max(1, Math.round(geo.N / 3)); // 2 coils per phase for 6 coils
+      connectedLengthM = coilLenM * numConnectedCoils;
+    } else if (wiring === 'all_series') {
+      numConnectedCoils = geo.N;
+      connectedLengthM = coilLenM * geo.N;
+    } else {
+      numConnectedCoils = 1;
+      connectedLengthM = coilLenM;
+    }
+
+    const rho20 = 1.724e-8;
+    const alpha = 0.00393;
+    const resCold = Math.max(1e-4, (rho20 * connectedLengthM) / areaM2);
+    const iCold = vDc / resCold;
+
+    // Iterative thermal equilibrium
+    // FR4 with continuous copper layers conducts heat across the entire stator disk.
+    // In rotating BLDC commutation, heat distributes over all coils across the full double-sided PCB surface.
+    const statorSurfaceM2 = 2 * Math.PI * (Math.pow(geo.rOut, 2) - Math.pow(geo.rIn, 2)) * 1e-6;
+    const heatTransferH = 18; // W/(m^2*K) natural convection air cooling
+    const effectiveThermalArea = statorSurfaceM2 * (wiring === 'single' ? 0.6 : 1.0);
+
+    let opTemp = amb;
+    let resistance = resCold;
+    let current = iCold;
+    let power = vDc * iCold;
+    let tempRise = 0;
+
+    for (let iter = 0; iter < 8; iter++) {
+      const rhoT = rho20 * (1 + alpha * (opTemp - 20));
+      resistance = Math.max(1e-4, (rhoT * connectedLengthM) / areaM2);
+      current = vDc / resistance;
+      power = Math.pow(current, 2) * resistance;
+      tempRise = power / Math.max(1e-4, (heatTransferH * effectiveThermalArea));
+      opTemp = amb + tempRise;
+    }
+
+    const currentDensity = current / areaMm2; // A/mm^2
+    const totalTurns = geo.userTurns * geo.layersCount;
+
+    // Planar spiral inductance: Mohan et al. (IEEE JSSC 1999) Modified Wheeler formulation
+    const dAvgM = (geo.rMax + geo.rMin) * 1e-3;
+    const rho = (geo.rMax - geo.rMin) / (geo.rMax + geo.rMin);
+    const mu0 = 4 * Math.PI * 1e-7;
+    const singleCoilL = (mu0 * Math.pow(totalTurns, 2) * dAvgM / 2) * (Math.log(2.46 / rho) + 0.20 * Math.pow(rho, 2)) * 1e6;
+    const inductanceMicroH = singleCoilL * numConnectedCoils;
+
+    // Airgap, Magnetic Circuit & Torque Estimation
+    const airgapMm = Math.max(0.1, parseFloat(airgap.value) || 1.0);
+    const pcbThMm = Math.max(0.2, parseFloat(pcbThickness.value) || 1.0);
+    const magGrd = magnetGrade.value || 'N52';
+    const rotorCfg = state.rotorConfig || 'dual';
+
+    const brMap = { N52: 1.44, N50: 1.40, N48: 1.38, N42: 1.30, N35: 1.18 };
+    const br = brMap[magGrd] || 1.44;
+    const hmDiscMm = 2.5; // Standard disc magnet thickness in AFPM rotors (2.5mm)
+
+    let bPeak = 0;
+    let bAvg = 0;
+    if (rotorCfg === 'dual') {
+      // Dual Rotor: Sandwich stator with magnets on both sides
+      const totalGapMm = 2 * airgapMm + pcbThMm;
+      const totalHmMm = 2 * hmDiscMm;
+      bPeak = br / (1.0 + 1.05 * (totalGapMm / totalHmMm) * 1.12);
+      bAvg = (2.0 / Math.PI) * bPeak;
+    } else {
+      // Single Rotor: Single rotor disk facing stator with steel backing
+      const effGapMm = airgapMm + 0.5 * pcbThMm;
+      bPeak = (br / (1.0 + 1.05 * (effGapMm / hmDiscMm) * 1.25)) * 0.65;
+      bAvg = (2.0 / Math.PI) * bPeak;
+    }
+
+    // Electromechanical Parameters
+    const p = Math.max(1, Math.floor(geo.nMag / 2)); // Pole pairs
+    const kw = 0.866; // Fundamental winding factor (6 coils / 8 poles concentrated)
+    const lRadialM = (geo.rMax - geo.rMin) * 1e-3;
+    const rMidM = (geo.rMax + geo.rMin) / 2 * 1e-3;
+    const nPhaseTurns = (Math.max(1, Math.round(geo.N / 3))) * totalTurns;
+
+    // Torque Constant Kt [Nm/A] and [mNm/A]
+    const ktNmPerA = 2.0 * p * kw * nPhaseTurns * bAvg * lRadialM * rMidM;
+    const ktMNmPerA = ktNmPerA * 1000;
+
+    // Stall Torque at thermal operating equilibrium
+    const stallTorqueNm = ktNmPerA * current;
+    const stallTorqueMNm = stallTorqueNm * 1000;
+    const stallTorqueGCm = stallTorqueNm * 10197.16;
+
+    // Velocity Constant Kv [RPM/V]
+    const kvRpmPerV = ktNmPerA > 0 ? (9.5493 / ktNmPerA) : 0;
+
+    // No-load RPM at selected DC voltage
+    const noLoadRpm = kvRpmPerV * vDc;
+
+    // Peak Mechanical Power [W] (at 50% stall torque and 50% no-load speed)
+    const pMechMax = 0.25 * stallTorqueNm * (noLoadRpm * 2 * Math.PI / 60.0);
+
+    return {
+      resCold, iCold, resistance, current, power, tempRise, opTemp, currentDensity,
+      totalTurns, connectedLengthM, inductanceMicroH, vDc, numConnectedCoils,
+      airgapMm, pcbThMm, magGrd, rotorCfg, bAvg, bPeak,
+      ktNmPerA, ktMNmPerA, stallTorqueNm, stallTorqueMNm, stallTorqueGCm,
+      kvRpmPerV, noLoadRpm, pMechMax
+    };
+  }
+
+  // Update UI & Calculations
+  function updateUI() {
+    state.geometry = generateGeometry();
+    const ele = computeElectrical(state.geometry);
+
+    // Update Model Titles
+    modelTitle.textContent = `Ø${state.geometry.dOut} mm PCB Motor · ${state.geometry.N} Stators · ${state.geometry.nMag} Magnets · 2 Layers`;
+    modelMeta.textContent = `Dpitch Ø${state.geometry.dPitch.toFixed(1)} mm · Center Via · ${state.geometry.userTurns} turns/layer (${state.geometry.userTurns * 2} turns/coil) · Trace ${state.geometry.w} mm / Space ${state.geometry.s} mm`;
+
+    // Numerical Displays: Electromechanical & Torque
+    torqueVal.innerHTML = `${ele.stallTorqueMNm.toFixed(2)}<span class="unit">mNm</span> <span style="font-size:0.62rem; color:var(--muted); font-weight:normal;">(${ele.stallTorqueGCm.toFixed(0)} g·cm)</span>`;
+    ktVal.innerHTML = `${ele.ktMNmPerA.toFixed(1)}<span class="unit">mNm/A</span>`;
+    kvVal.innerHTML = `${ele.kvRpmPerV.toFixed(0)}<span class="unit">RPM/V</span>`;
+    rpmVal.innerHTML = `${ele.noLoadRpm.toFixed(0)}<span class="unit">RPM</span>`;
+
+    // Electrical & Power Displays
+    if (ele.resistance < 1.0) {
+      resVal.innerHTML = `${(ele.resistance * 1000).toFixed(1)}<span class="unit">mΩ</span>`;
+    } else {
+      resVal.innerHTML = `${ele.resistance.toFixed(2)}<span class="unit">Ω</span> <span style="font-size:0.62rem; color:var(--muted); font-weight:normal;">(Cold: ${ele.resCold.toFixed(2)}Ω)</span>`;
+    }
+
+    currentVal.innerHTML = `${ele.current.toFixed(2)}<span class="unit">A</span> <span style="font-size:0.62rem; color:var(--muted); font-weight:normal;">(Cold: ${ele.iCold.toFixed(2)}A)</span>`;
+    powerVal.innerHTML = ele.power < 1 ? `${(ele.power * 1000).toFixed(0)}<span class="unit">mW</span>` : `${ele.power.toFixed(2)}<span class="unit">W</span>`;
+    pMechVal.innerHTML = ele.pMechMax < 1 ? `${(ele.pMechMax * 1000).toFixed(0)}<span class="unit">mW</span>` : `${ele.pMechMax.toFixed(2)}<span class="unit">W</span>`;
+
+    // Thermal & Geometry Displays
+    tempVal.innerHTML = `+${ele.tempRise.toFixed(1)}° <span class="unit">(${ele.opTemp.toFixed(1)}°C)</span>`;
+    densityVal.innerHTML = `${ele.currentDensity.toFixed(1)}<span class="unit">A/mm²</span>`;
+    lenVal.innerHTML = `${ele.connectedLengthM.toFixed(2)}<span class="unit">m</span>`;
+    inductanceVal.innerHTML = `${ele.inductanceMicroH.toFixed(1)}<span class="unit">µH</span>`;
+
+    // Status Badge & Thermal Warnings with selected voltage
+    const vLabel = (ele.vDc % 1 === 0 ? ele.vDc.toFixed(0) : ele.vDc.toFixed(1)) + 'V';
+    let badgeClass = 'badge-ok';
+    let icon = '✓';
+    let msg = `Safe ${vLabel} DC operation · Torque: ${ele.stallTorqueMNm.toFixed(1)} mNm`;
+
+    if (ele.opTemp > 105 || ele.currentDensity > 70) {
+      badgeClass = 'badge-danger';
+      icon = '⚠';
+      msg = `Overheat warning at ${vLabel} (${ele.opTemp.toFixed(0)}°C): Exceeds continuous dissipation`;
+    } else if (ele.opTemp > 65 || ele.power > 3.0) {
+      badgeClass = 'badge-warn';
+      icon = '▲';
+      msg = `Elevated dissipation at ${vLabel} (${ele.power.toFixed(1)}W): Ensure airflow or PWM limit`;
+    }
+
+    statusBadgeContainer.innerHTML = `<div class="status-badge ${badgeClass}"><span>${icon}</span> <span>${msg}</span></div>`;
+    statorSummaryText.textContent = `Ø${state.geometry.dOut}mm Stator · Stall Torque: ${ele.stallTorqueMNm.toFixed(1)}mNm (${ele.stallTorqueGCm.toFixed(0)}g·cm) · Kt: ${ele.ktMNmPerA.toFixed(1)}mNm/A · Kv: ${ele.kvRpmPerV.toFixed(0)}RPM/V @ ${vLabel}`;
+
+    render();
+  }
+
+  // Canvas Render
+  function render() {
+    const geo = state.geometry;
+    if (!geo) return;
+
+    const r = canvasWrap.getBoundingClientRect();
+    const rw = (r.width > 0 ? r.width : canvasWrap.clientWidth) || 600;
+    const rh = (r.height > 0 ? r.height : canvasWrap.clientHeight) || 400;
+    const d = window.devicePixelRatio || 1;
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    ctx.clearRect(0, 0, rw, rh);
+
+    // Dark Viewport Background
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, rw, rh);
+
+    const center = toScreen({ x: 0, y: 0 });
+    const scale = state.zoom;
+
+    // Draw Stator Boundaries & Pitch Circle
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+
+    // Outer PCB boundary (Ø50mm)
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, geo.rOut * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner bore (Ø20mm)
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, geo.rIn * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Pitch circle (Ø35mm)
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, geo.rMid * scale, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center crosshair
+    ctx.beginPath();
+    ctx.moveTo(center.x - 8, center.y); ctx.lineTo(center.x + 8, center.y);
+    ctx.moveTo(center.x, center.y - 8); ctx.lineTo(center.x, center.y + 8);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Stators selection to render
+    const statorsToDraw = state.focusSingleCoil ? [geo.stators[0]] : geo.stators;
+
+    // Render Copper Trace Layers (L1 Top, L2 Bottom)
+    ['L1', 'L2'].forEach(lName => {
+      if (!state.visibleLayers[lName]) return;
+
+      ctx.strokeStyle = LAYER_COLORS[lName] || '#38bdf8';
+      ctx.lineWidth = Math.max(1, geo.w * scale);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      statorsToDraw.forEach(stator => {
+        const pts = stator.layers[lName];
+        if (!pts || pts.length < 2) return;
+
+        ctx.beginPath();
+        const start = toScreen(pts[0]);
+        ctx.moveTo(start.x, start.y);
+        for (let i = 1; i < pts.length; i++) {
+          const pt = toScreen(pts[i]);
+          ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.stroke();
+      });
+    });
+
+    // Render Center Vias
+    if (state.visibleLayers.VIAS) {
+      statorsToDraw.forEach(stator => {
+        stator.vias.forEach(v => {
+          const sc = toScreen(v);
+          const padRadius = Math.max(1.8, (v.pad / 2) * scale);
+          const drillRadius = Math.max(0.8, (v.drill / 2) * scale);
+
+          // Annular Pad
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          ctx.arc(sc.x, sc.y, padRadius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Drill Hole
+          ctx.fillStyle = '#020617';
+          ctx.beginPath();
+          ctx.arc(sc.x, sc.y, drillRadius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+    }
+
+    // Render Phase Identifiers (A, B, C)
+    if (state.visibleLayers.PHASES && !state.focusSingleCoil) {
+      ctx.font = `bold ${Math.max(9, Math.min(13, 10 * scale * 0.4))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      geo.stators.forEach(stator => {
+        const pt = toScreen({
+          x: (geo.rOut - 2.8) * Math.cos(stator.angle),
+          y: (geo.rOut - 2.8) * Math.sin(stator.angle)
+        });
+        ctx.fillStyle = PHASE_COLORS[stator.phaseIdx];
+        ctx.fillText(stator.label.replace('Phase ', ''), pt.x, pt.y);
+      });
+    }
+
+    // Render Rotor Magnets Overlay
+    if (state.visibleLayers.MAGNETS && !state.focusSingleCoil) {
+      geo.magnets.forEach(mag => {
+        const sc = toScreen(mag);
+        const radius = mag.r * scale;
+
+        // Magnet Body (Translucent cylinder face)
+        ctx.fillStyle = mag.pole === 'N' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(59, 130, 246, 0.45)';
+        ctx.strokeStyle = mag.pole === 'N' ? '#f87171' : '#60a5fa';
+        ctx.lineWidth = 1.5;
+
+        ctx.beginPath();
+        ctx.arc(sc.x, sc.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Magnet N/S Label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${Math.max(8, Math.min(13, radius * 0.75))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(mag.pole, sc.x, sc.y);
+      });
+    }
+  }
+
+  // DXF Export (2-Layer Format)
+  function exportDxfFile() {
+    const geo = state.geometry;
+    if (!geo) return;
+
+    const lines = [];
+    const add = (...args) => args.forEach(a => lines.push(String(a)));
+
+    add(0, 'SECTION', 2, 'HEADER', 9, '$INSUNITS', 70, 4, 0, 'ENDSEC');
+    add(0, 'SECTION', 2, 'TABLES', 0, 'ENDSEC');
+    add(0, 'SECTION', 2, 'ENTITIES');
+
+    // Board outlines & Pitch Circle
+    add(0, 'CIRCLE', 8, 'BOARD_OUTLINE', 10, '0.0000', 20, '0.0000', 30, '0.0', 40, geo.rOut.toFixed(4));
+    add(0, 'CIRCLE', 8, 'BOARD_OUTLINE', 10, '0.0000', 20, '0.0000', 30, '0.0', 40, geo.rIn.toFixed(4));
+    add(0, 'CIRCLE', 8, 'PITCH_CIRCLE', 10, '0.0000', 20, '0.0000', 30, '0.0', 40, geo.rMid.toFixed(4));
+
+    // 2 Copper Layers (COIL_L1, COIL_L2)
+    geo.stators.forEach(stator => {
+      ['L1', 'L2'].forEach(lName => {
+        const pts = stator.layers[lName];
+        if (pts && pts.length > 1) {
+          add(0, 'LWPOLYLINE', 8, `COIL_${lName}`, 90, pts.length, 70, 0, 43, geo.w.toFixed(4));
+          pts.forEach(p => add(10, p.x.toFixed(4), 20, p.y.toFixed(4)));
+        }
+      });
+
+      // Center Via
+      stator.vias.forEach(v => {
+        add(0, 'CIRCLE', 8, 'VIA_PADS', 10, v.x.toFixed(4), 20, v.y.toFixed(4), 30, '0.0', 40, (v.pad / 2).toFixed(4));
+        add(0, 'CIRCLE', 8, 'VIA_DRILL', 10, v.x.toFixed(4), 20, v.y.toFixed(4), 30, '0.0', 40, (v.drill / 2).toFixed(4));
+      });
+    });
+
+    // Rotor Magnets
+    if (state.visibleLayers.MAGNETS) {
+      geo.magnets.forEach(mag => {
+        const layerName = mag.pole === 'N' ? 'ROTOR_MAGNETS_N' : 'ROTOR_MAGNETS_S';
+        add(0, 'CIRCLE', 8, layerName, 10, mag.x.toFixed(4), 20, mag.y.toFixed(4), 30, '0.0', 40, mag.r.toFixed(4));
+      });
+    }
+
+    add(0, 'ENDSEC', 0, 'EOF');
+    const dxfString = lines.join('\r\n') + '\r\n';
+
+    const blob = new Blob([dxfString], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PCB_BLDC_Motor_Stator_D${geo.dOut}mm_Din${geo.dIn.toFixed(1)}mm_${geo.N}Coils_${geo.nMag}Mag_2Layer.dxf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // JSON Export (Save Settings)
+  function exportJsonConfig() {
+    const config = {
+      app: 'PCB Motor Coil Designer',
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      settings: {
+        motorDiameter: parseFloat(motorDiameter.value) || 50,
+        innerDiameter: parseFloat(innerDiameter.value) || 20,
+        statorCount: parseInt(statorCount.value, 10) || 6,
+        shape: state.shape,
+        rotorMagnets: parseInt(rotorMagnets.value, 10) || 8,
+        magnetDiameter: parseFloat(magnetDiameter.value) || 10,
+        airgap: parseFloat(airgap.value) || 1.0,
+        pcbThickness: parseFloat(pcbThickness.value) || 1.0,
+        magnetGrade: magnetGrade.value || 'N52',
+        rotorConfig: state.rotorConfig || 'dual',
+        turnsPerLayer: parseInt(turnsPerLayer.value, 10) || 19,
+        traceWidth: parseFloat(traceWidth.value) || 0.127,
+        traceSpacing: parseFloat(traceSpacing.value) || 0.127,
+        copperWeight: parseFloat(copperWeight.value) || 35,
+        viaDrill: parseFloat(viaDrill.value) || 0.25,
+        viaPad: parseFloat(viaPad.value) || 0.5,
+        dcVoltage: parseFloat(dcVoltage.value) || 3,
+        wiringConfig: wiringConfig.value,
+        ambientTemp: parseFloat(ambientTemp.value) || 25
+      }
+    };
+
+    const jsonString = JSON.stringify(config, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PCBMotor_D${config.settings.motorDiameter}mm_Din${config.settings.innerDiameter}mm_${config.settings.statorCount}Coils.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // JSON Import (Load Settings)
+  function loadJsonFile(file) {
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        applySettings(data.settings || data);
+      } catch (err) {
+        alert('Invalid JSON configuration file: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function applySettings(s) {
+    if (!s || typeof s !== 'object') return;
+    if (s.motorDiameter != null) motorDiameter.value = s.motorDiameter;
+    if (s.innerDiameter != null) innerDiameter.value = s.innerDiameter;
+    if (s.statorCount != null) statorCount.value = s.statorCount;
+    if (s.rotorMagnets != null) rotorMagnets.value = s.rotorMagnets;
+    if (s.magnetDiameter != null) magnetDiameter.value = s.magnetDiameter;
+    if (s.airgap != null) airgap.value = s.airgap;
+    if (s.pcbThickness != null) pcbThickness.value = s.pcbThickness;
+    if (s.magnetGrade != null) magnetGrade.value = s.magnetGrade;
+    if (s.turnsPerLayer != null) turnsPerLayer.value = s.turnsPerLayer;
+    if (s.traceWidth != null) traceWidth.value = s.traceWidth;
+    if (s.traceSpacing != null) traceSpacing.value = s.traceSpacing;
+    if (s.copperWeight != null) copperWeight.value = s.copperWeight;
+    if (s.viaDrill != null) viaDrill.value = s.viaDrill;
+    if (s.viaPad != null) viaPad.value = s.viaPad;
+    if (s.dcVoltage != null) dcVoltage.value = s.dcVoltage;
+    if (s.wiringConfig != null) wiringConfig.value = s.wiringConfig;
+    if (s.ambientTemp != null) ambientTemp.value = s.ambientTemp;
+
+    if (s.shape && (s.shape === 'trapezoidal' || s.shape === 'circular')) {
+      state.shape = s.shape;
+      shapeToggle.querySelectorAll('button').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-val') === state.shape);
+      });
+    }
+
+    if (s.rotorConfig && (s.rotorConfig === 'dual' || s.rotorConfig === 'single')) {
+      state.rotorConfig = s.rotorConfig;
+      rotorConfigToggle.querySelectorAll('button').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-val') === state.rotorConfig);
+      });
+    }
+
+    updateUI();
+    fitView();
+  }
+
+  // Drag & drop JSON file directly onto window
+  window.addEventListener('dragover', e => {
+    e.preventDefault();
+  });
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.name.toLowerCase().endsWith('.json') || file.type === 'application/json') {
+        loadJsonFile(file);
+      }
+    }
+  });
+
+  // Initial Boot Sequence with Layout Guarantees
+  updateUI();
+  resizeCanvas();
+  fitView();
+  if (window.requestAnimationFrame) {
+    requestAnimationFrame(() => {
+      resizeCanvas();
+      fitView();
+    });
+  }
+  setTimeout(() => {
+    resizeCanvas();
+    fitView();
+  }, 100);
+})();
+</script>
+
+</body>
+</html>
