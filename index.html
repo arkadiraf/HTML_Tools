@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A collection of private, browser-based utilities for CAD, PCB, image, and PDF workflows.">
+  <title>HTML Tools</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-hover: #24344d;
+      --border: #334155;
+      --primary: #38bdf8;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      padding: clamp(1.25rem, 4vw, 3rem);
+      display: grid;
+      place-items: center;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    main {
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    header {
+      margin-bottom: clamp(1.5rem, 4vh, 2.5rem);
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(2rem, 5vw, 3rem);
+      letter-spacing: -0.04em;
+    }
+
+    h1 span { color: var(--primary); }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .tools {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .tool {
+      min-height: 165px;
+      padding: 1.4rem;
+      display: flex;
+      flex-direction: column;
+      color: inherit;
+      text-decoration: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      transition: transform 0.15s, border-color 0.15s, background-color 0.15s;
+    }
+
+    .tool:hover,
+    .tool:focus-visible {
+      transform: translateY(-2px);
+      border-color: var(--primary);
+      background: var(--card-hover);
+      outline: none;
+    }
+
+    .tool-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .tool h2 {
+      margin: 0;
+      color: var(--primary);
+      font-size: 1.2rem;
+    }
+
+    .arrow {
+      color: var(--muted);
+      font-size: 1.25rem;
+      transition: color 0.15s, transform 0.15s;
+    }
+
+    .tool:hover .arrow,
+    .tool:focus-visible .arrow {
+      color: var(--primary);
+      transform: translateX(3px);
+    }
+
+    .tool p {
+      margin: 0.75rem 0 1rem;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+
+    .formats {
+      margin-top: auto;
+      color: var(--text);
+      font: 0.75rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      opacity: 0.72;
+    }
+
+    footer {
+      margin-top: 1.5rem;
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 680px) {
+      body { display: block; }
+      .tools { grid-template-columns: 1fr; }
+      .tool { min-height: 145px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>HTML <span>Tools</span></h1>
+      <p>Focused utilities that run locally in your browser.</p>
+    </header>
+
+    <nav class="tools" aria-label="Available tools">
+      <a class="tool" href="Gerber2Stencil.html">
+        <div class="tool-top">
+          <h2>Gerber2Stencil</h2>
+          <span class="arrow" aria-hidden="true">→</span>
+        </div>
+        <p>Preview solder-paste Gerbers, compensate aperture sizes, and generate laser-cuttable stencils.</p>
+        <span class="formats">GERBER / ZIP → DXF / SVG</span>
+      </a>
+
+      <a class="tool" href="DXFPreview.html">
+        <div class="tool-top">
+          <h2>DXF / SVG Preview</h2>
+          <span class="arrow" aria-hidden="true">→</span>
+        </div>
+        <p>Inspect vector geometry with accurate dimensions, coordinates, pan, zoom, and fit-to-screen controls.</p>
+        <span class="formats">DXF / SVG</span>
+      </a>
+
+      <a class="tool" href="pdfMerger.html">
+        <div class="tool-top">
+          <h2>PDF Merger</h2>
+          <span class="arrow" aria-hidden="true">→</span>
+        </div>
+        <p>Combine and arrange PDF documents locally without uploading files to a server.</p>
+        <span class="formats">PDF → PDF</span>
+      </a>
+
+      <a class="tool" href="Cropper.html">
+        <div class="tool-top">
+          <h2>Image Cropper</h2>
+          <span class="arrow" aria-hidden="true">→</span>
+        </div>
+        <p>Crop and prepare consistent gallery thumbnails directly in the browser.</p>
+        <span class="formats">IMAGE → IMAGE</span>
+      </a>
+    </nav>
+
+    <footer>No installation · Client-side processing</footer>
+  </main>
+</body>
+</html>

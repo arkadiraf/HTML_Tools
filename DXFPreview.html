@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DXF / SVG Preview — Simple CAD Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --border:#334155; --primary:#38bdf8; --cut:#f43f5e; --text:#f8fafc; --muted:#94a3b8; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:clamp(.75rem,2vh,1.5rem); height:100vh; height:100dvh; overflow:hidden; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+    .container { width:100%; max-width:1100px; height:100%; min-height:0; display:flex; flex-direction:column; }
+    header { flex:0 0 auto; text-align:center; margin-bottom:clamp(.5rem,1.5vh,1rem); }
+    h1 { margin:0 0 .35rem; font-size:clamp(1.65rem,3.5vh,2.2rem); letter-spacing:-.5px; }
+    h1 span { color:var(--primary); }
+    .subtitle,#status,.summary,.coordinates,.empty { color:var(--muted); }
+    .subtitle { margin:0; }
+    .upload { flex:0 0 auto; border:2px dashed var(--border); background:var(--card); border-radius:12px; padding:clamp(.75rem,2vh,1.25rem); text-align:center; cursor:pointer; transition:.2s; }
+    .upload:hover,.upload.dragover { border-color:var(--primary); background:#24344d; }
+    .upload input { display:none; }
+    .upload p { margin:0; }
+    #status { flex:0 0 auto; min-height:1.25rem; margin:.5rem 0; text-align:center; font-size:.95rem; }
+    #status.error { color:#ef4444; }
+    .card { flex:1 1 auto; min-height:0; padding:clamp(.65rem,1.5vh,1rem); background:var(--card); border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; }
+    .card-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.6rem; }
+    .file-info { min-width:0; }
+    .filename { color:var(--primary); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .summary { margin-top:.25rem; font-size:.82rem; }
+    .buttons { display:flex; gap:.5rem; flex-shrink:0; }
+    button { border:0; border-radius:6px; padding:.55rem .85rem; background:#0284c7; color:white; font-family:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
+    button:hover:not(:disabled) { background:var(--primary); color:var(--bg); }
+    button:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+    .canvas-wrap { position:relative; width:100%; height:auto; min-height:0; flex:1 1 auto; overflow:hidden; border:1px solid var(--border); border-radius:6px; background:#020617; }
+    canvas { display:block; width:100%; height:100%; cursor:grab; }
+    canvas.dragging { cursor:grabbing; }
+    .empty { position:absolute; inset:0; display:grid; place-items:center; font-style:italic; pointer-events:none; }
+    .empty.hidden { display:none; }
+    .coordinates { flex:0 0 auto; margin-top:.5rem; text-align:right; font: .78rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    @media(max-width:700px) { body{height:auto;min-height:100dvh;overflow:auto;padding:1rem}.container{height:auto}.card-head{align-items:stretch;flex-direction:column}.buttons button{flex:1}.canvas-wrap{height:55vh;min-height:320px;flex:none} }
+    @media(max-height:650px) and (min-width:701px) { .subtitle{display:none} header{margin-bottom:.4rem}.upload{padding:.6rem}.card-head{margin-bottom:.4rem}.coordinates{margin-top:.3rem} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header><h1>DXF<span>/SVG</span> Preview</h1><p class="subtitle">Open, inspect, and export DXF or SVG geometry directly in your browser</p></header>
+    <div class="upload" id="dropZone"><p><strong>Click to browse</strong> or drag &amp; drop a <code>.dxf</code> or <code>.svg</code> file</p><input type="file" id="fileInput" accept=".dxf,.DXF,.svg,.SVG,image/svg+xml"></div>
+    <div id="status">No file loaded.</div>
+    <section class="card">
+      <div class="card-head">
+        <div class="file-info"><div class="filename" id="fileName">DXF preview</div><div class="summary" id="fileSummary">Dimensions and entity count will appear here.</div></div>
+        <div class="buttons"><button id="zoomOut" disabled>−</button><button id="fit" disabled>Fit drawing</button><button id="zoomIn" disabled>+</button></div>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap"><canvas id="canvas"></canvas><div class="empty" id="empty">Awaiting DXF file…</div></div>
+      <div class="coordinates" id="coordinates">X: — &nbsp; Y: —</div>
+    </section>
+  </div>
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const dropZone=$('dropZone'), fileInput=$('fileInput'), status=$('status'), fileName=$('fileName'), fileSummary=$('fileSummary');
+    const wrap=$('canvasWrap'), canvas=$('canvas'), ctx=canvas.getContext('2d'), empty=$('empty'), coordinates=$('coordinates');
+    const fitBtn=$('fit'), zoomIn=$('zoomIn'), zoomOut=$('zoomOut');
+    const IDENT={a:1,b:0,c:0,d:1,e:0,f:0};
+    const UNITS={0:['Unitless','units'],1:['Inches','in'],2:['Feet','ft'],4:['Millimetres','mm'],5:['Centimetres','cm'],6:['Metres','m'],9:['Mils','mil'],10:['Yards','yd'],14:['Decimetres','dm']};
+    const state={paths:[],bounds:null,unit:UNITS[0],zoom:1,panX:0,panY:0,drag:false,dragX:0,dragY:0,unsupported:new Set(),entityCount:0,fileName:'drawing'};
+
+    dropZone.onclick=()=>fileInput.click();
+    fileInput.onchange=e=>e.target.files[0]&&readFile(e.target.files[0]);
+    dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('dragover')};
+    dropZone.ondragleave=()=>dropZone.classList.remove('dragover');
+    dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('dragover');e.dataTransfer.files[0]&&readFile(e.dataTransfer.files[0])};
+
+    async function readFile(file){
+      setStatus(`Reading ${file.name}…`);
+      try{
+        const text=await file.text();
+        if(file.name.toLowerCase().endsWith('.svg')||/^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(text))loadSvgText(text,file.name);
+        else loadDxfText(text,file.name);
+      }catch(error){console.error(error);setStatus(`Unable to preview this file: ${error.message}`,true)}
+    }
+
+    function loadDxfText(text,name='drawing.dxf'){
+      let dxf,parser='dxf-parser';
+      try{if(!window.DxfParser)throw Error('library unavailable');dxf=new DxfParser().parseSync(text)}
+      catch(error){console.warn('Using built-in DXF parser:',error);dxf=parseFallback(text);parser='built-in parser'}
+      const entities=dxf.entities||[];
+      if(!entities.length)throw Error('The ENTITIES section is empty or unreadable.');
+      state.paths=[];state.unsupported.clear();state.entityCount=entities.length;
+      const unitCode=Number(dxf.header&&dxf.header.$INSUNITS);
+      state.unit=UNITS[unitCode]||(Number.isFinite(unitCode)?[`DXF unit ${unitCode}`,'units']:UNITS[0]);
+      flatten(entities,dxf.blocks||{},IDENT,0);
+      state.bounds=getBounds();
+      if(!state.paths.length||!state.bounds)throw Error(`No supported drawable geometry was found.${state.unsupported.size?' Unsupported: '+[...state.unsupported].join(', '):''}`);
+      state.fileName=name;fileName.textContent=name; updateSummary(); empty.classList.add('hidden');
+      [fitBtn,zoomIn,zoomOut].forEach(b=>b.disabled=false); fitDrawing();
+      setStatus(`Loaded with ${parser}.${state.unsupported.size?' Skipped: '+[...state.unsupported].join(', ')+'.':''}`);
+    }
+
+    function loadSvgText(text,name='drawing.svg'){
+      const xml=new DOMParser().parseFromString(text,'image/svg+xml');
+      const parseError=xml.querySelector('parsererror');
+      if(parseError)throw Error('Invalid SVG: '+parseError.textContent.split('\n')[0]);
+      const svg=xml.documentElement;
+      if(!svg||svg.localName!=='svg')throw Error('The file does not contain an SVG root element.');
+      svg.querySelectorAll('script,foreignObject').forEach(node=>node.remove());
+
+      state.paths=[];state.unsupported.clear();state.entityCount=0;state.fileName=name;
+      const setup=svgCoordinateSetup(svg);state.unit=setup.unit;
+      const holder=document.createElement('div');
+      holder.style.cssText='position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none';
+      holder.appendChild(document.importNode(svg,true));document.body.appendChild(holder);
+      const liveSvg=holder.firstElementChild;
+      try{visitSvg(liveSvg,liveSvg,setup.matrix,false,setup.tolerance)}finally{holder.remove()}
+
+      state.bounds=getBounds();
+      if(!state.paths.length||!state.bounds)throw Error('No supported SVG geometry was found.');
+      fileName.textContent=name;updateSummary();empty.classList.add('hidden');
+      [fitBtn,zoomIn,zoomOut].forEach(b=>b.disabled=false);fitDrawing();
+      setStatus(`Loaded SVG.${state.unsupported.size?' Skipped: '+[...state.unsupported].join(', ')+'.':''}`);
+    }
+
+    function svgCoordinateSetup(svg){
+      const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+      const width=parseSvgLength(svg.getAttribute('width')),height=parseSvgLength(svg.getAttribute('height'));
+      const hasBox=box.length===4&&box.every(Number.isFinite)&&box[2]>0&&box[3]>0;
+      let vx=hasBox?box[0]:0,vy=hasBox?box[1]:0,vw=hasBox?box[2]:null,vh=hasBox?box[3]:null;
+      const physicalUnit=['mm','cm','in'].includes(width.unit)?width.unit:'';
+      const pxPerUnit={mm:96/25.4,cm:96/2.54,in:96,px:1,'':1};
+      if(!vw)vw=width.value>0?width.value*(pxPerUnit[width.unit]||1):300;
+      if(!vh)vh=height.value>0?height.value*(pxPerUnit[height.unit]||1):150;
+      let sx=1,sy=1,unit=['SVG units','units'];
+      if(physicalUnit){
+        unit=physicalUnit==='mm'?UNITS[4]:physicalUnit==='cm'?UNITS[5]:UNITS[1];
+        sx=hasBox?width.value/vw:1/(pxPerUnit[physicalUnit]);
+        sy=height.value>0?(hasBox?height.value/vh:1/(pxPerUnit[height.unit]||pxPerUnit[physicalUnit])):sx;
+      }
+      return{unit,matrix:{a:sx,b:0,c:0,d:-sy,e:-vx*sx,f:vy*sy},tolerance:Math.max(vw,vh)/2000};
+    }
+
+    function parseSvgLength(value){const match=String(value||'').trim().match(/^([+-]?(?:\d*\.)?\d+(?:e[+-]?\d+)?)\s*(mm|cm|in|px)?$/i);return match?{value:+match[1],unit:(match[2]||'').toLowerCase()}:{value:0,unit:''}}
+
+    function visitSvg(node,root,parent,fromUse,tolerance){
+      if(!(node instanceof SVGElement))return;
+      const tag=node.localName.toLowerCase();
+      if(!fromUse&&['defs','mask','clippath'].includes(tag))return;
+      if(node.getAttribute('display')==='none'||node.getAttribute('visibility')==='hidden')return;
+      let matrix=mul(parent,svgLocalMatrix(node));
+      if(tag==='use'){
+        matrix=mul(matrix,translate(+node.getAttribute('x')||0,+node.getAttribute('y')||0));
+        const href=node.getAttribute('href')||node.getAttributeNS('http://www.w3.org/1999/xlink','href');
+        const ref=href&&href[0]==='#'?[...root.querySelectorAll('[id]')].find(item=>item.id===href.slice(1)):null;
+        if(ref)visitSvg(ref,root,matrix,true,tolerance);else state.unsupported.add('USE');
+        return;
+      }
+      if(['svg','g','symbol','a'].includes(tag)){[...node.children].forEach(child=>visitSvg(child,root,matrix,fromUse,tolerance));return}
+      const paths=svgElementPaths(node,tolerance);state.entityCount++;
+      if(!paths.length){state.unsupported.add(tag.toUpperCase());return}
+      paths.forEach(path=>{const points=dedupe(path.points.map(p=>tf(p,matrix)));if(points.length>1)state.paths.push({points,closed:path.closed,type:'SVG '+tag,layer:'SVG'})});
+    }
+
+    function svgLocalMatrix(node){
+      const list=node.transform&&node.transform.baseVal,combined=list&&list.numberOfItems?list.consolidate():null,m=combined&&combined.matrix;
+      return m?{a:m.a,b:m.b,c:m.c,d:m.d,e:m.e,f:m.f}:IDENT;
+    }
+
+    function svgElementPaths(node,tolerance){
+      const tag=node.localName.toLowerCase(),n=(name,fallback=0)=>num(node.getAttribute(name),fallback);
+      if(tag==='path')return flattenSvgPath(node.getAttribute('d')||'',tolerance);
+      if(tag==='line')return[{points:[{x:n('x1'),y:n('y1')},{x:n('x2'),y:n('y2')}],closed:false}];
+      if(tag==='circle'){const r=n('r');return r>0?[{points:ellipse({x:n('cx'),y:n('cy')},{x:r,y:0},1,0,Math.PI*2),closed:true}]:[]}
+      if(tag==='ellipse'){const rx=n('rx'),ry=n('ry');return rx>0&&ry>0?[{points:ellipse({x:n('cx'),y:n('cy')},{x:rx,y:0},ry/rx,0,Math.PI*2),closed:true}]:[]}
+      if(tag==='rect'){const x=n('x'),y=n('y'),w=n('width'),h=n('height');return w>0&&h>0?[{points:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}],closed:true}]:[]}
+      if(tag==='polygon'||tag==='polyline'){
+        const values=(node.getAttribute('points')||'').match(/[+-]?(?:\d*\.\d+|\d+\.?)(?:e[+-]?\d+)?/gi)||[],points=[];
+        for(let i=0;i+1<values.length;i+=2)points.push({x:+values[i],y:+values[i+1]});return points.length>1?[{points,closed:tag==='polygon'}]:[];
+      }return[];
+    }
+
+    function flattenSvgPath(d,tolerance){
+      return splitSvgPath(d).map(part=>{const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',part.d);const length=path.getTotalLength(),count=Math.max(1,Math.min(5000,Math.ceil(length/Math.max(tolerance,.001))));return{points:Array.from({length:count+1},(_,i)=>{const p=path.getPointAtLength(length*i/count);return{x:p.x,y:p.y}}),closed:part.closed}}).filter(path=>path.points.length>1);
+    }
+
+    function splitSvgPath(d){
+      const tokens=d.match(/[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+\.?)(?:e[+-]?\d+)?/g)||[],sizes={M:2,L:2,H:1,V:1,C:6,S:4,Q:4,T:2,A:7,Z:0},out=[];
+      let current=null,command='',i=0,x=0,y=0,startX=0,startY=0;
+      const begin=(nx,ny)=>{if(current)out.push(current);current={d:`M ${nx} ${ny}`,closed:false};startX=nx;startY=ny};
+      while(i<tokens.length){if(/^[a-zA-Z]$/.test(tokens[i]))command=tokens[i++];if(!command)break;const upper=command.toUpperCase(),relative=command!==upper;
+        if(upper==='Z'){if(current){current.d+=' Z';current.closed=true}x=startX;y=startY;command='';continue}
+        const size=sizes[upper];if(!size||i+size>tokens.length)break;const a=tokens.slice(i,i+size).map(Number);i+=size;
+        if(upper==='M'){const nx=(relative?x:0)+a[0],ny=(relative?y:0)+a[1];begin(nx,ny);x=nx;y=ny;command=relative?'l':'L'}
+        else if(upper==='H'){x=(relative?x:0)+a[0];current.d+=` L ${x} ${y}`}
+        else if(upper==='V'){y=(relative?y:0)+a[0];current.d+=` L ${x} ${y}`}
+        else{const end=upper==='A'?5:size-2,nx=(relative?x:0)+a[end],ny=(relative?y:0)+a[end+1],values=a.slice(),coordStart=upper==='A'?5:0;if(relative)for(let k=coordStart;k<values.length;k+=2){values[k]+=x;values[k+1]+=y}current.d+=` ${upper} ${values.join(' ')}`;x=nx;y=ny}
+      }if(current)out.push(current);return out;
+    }
+
+    function flatten(entities,blocks,parent,depth){
+      if(depth>12)throw Error('Block nesting is too deep or circular.');
+      entities.forEach(entity=>{
+        if(entity.type==='INSERT'){
+          const block=blocks[entity.name];
+          if(!block||!block.entities){state.unsupported.add(`INSERT:${entity.name||'?'}`);return}
+          const rows=Math.max(1,+entity.rowCount||1), cols=Math.max(1,+entity.columnCount||1);
+          const rs=+entity.rowSpacing||0, cs=+entity.columnSpacing||0;
+          const base=block.position||block.basePoint||{x:0,y:0}, pos=entity.position||{x:0,y:0};
+          const sx=num(entity.xScale,num(entity.scale&&entity.scale.x,1)), sy=num(entity.yScale,num(entity.scale&&entity.scale.y,1));
+          const angle=num(entity.rotation,0)*Math.PI/180;
+          for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+            const local=mul(translate(pos.x,pos.y),mul(rotate(angle),mul(scale(sx,sy),translate(-base.x+c*cs,-base.y+r*rs))));
+            flatten(block.entities,blocks,mul(parent,local),depth+1);
+          }
+          return;
+        }
+        const paths=entityPaths(entity);
+        if(!paths.length){state.unsupported.add(entity.type||'UNKNOWN');return}
+        paths.forEach(path=>{
+          const points=dedupe(path.points.map(p=>tf(p,parent)));
+          if(points.length>1)state.paths.push({points,closed:!!path.closed,type:entity.type,layer:entity.layer||'0'});
+        });
+      });
+    }
+
+    function entityPaths(e){
+      if(e.type==='LINE')return e.vertices&&e.vertices.length>1?[{points:e.vertices.slice(0,2),closed:false}]:[];
+      if(e.type==='LWPOLYLINE'||e.type==='POLYLINE')return polyline(e.vertices||[],!!(e.shape||e.closed));
+      if(e.type==='CIRCLE')return e.center&&e.radius>0?[{points:ellipse(e.center,{x:e.radius,y:0},1,0,Math.PI*2),closed:true}]:[];
+      if(e.type==='ARC')return e.center&&e.radius>0?[{points:ellipse(e.center,{x:e.radius,y:0},1,e.startAngle,e.endAngle),closed:false}]:[];
+      if(e.type==='ELLIPSE'&&e.center&&e.majorAxisEndPoint){
+        const start=num(e.startAngle,0),end=num(e.endAngle,Math.PI*2),sweep=Math.abs(end-start);
+        return [{points:ellipse(e.center,e.majorAxisEndPoint,num(e.axisRatio,1),start,end),closed:sweep<1e-10||Math.abs(sweep-Math.PI*2)<1e-8}];
+      }
+      if(e.type==='SPLINE'){const points=spline(e);return points.length>1?[{points,closed:!!(e.closed||(e.flags&1))}]:[]}
+      if(e.type==='SOLID'||e.type==='3DFACE'){const p=e.vertices||e.points||[];return p.length>2?[{points:p,closed:true}]:[]}
+      if(e.type==='POINT'){
+        const p=e.position||e.point;if(!p)return[];const s=.5;
+        return [{points:[{x:p.x-s,y:p.y},{x:p.x+s,y:p.y}],closed:false},{points:[{x:p.x,y:p.y-s},{x:p.x,y:p.y+s}],closed:false}];
+      }
+      return [];
+    }
+
+    function polyline(vertices,closed){
+      if(vertices.length<2)return[];
+      const points=[{x:vertices[0].x,y:vertices[0].y}],count=closed?vertices.length:vertices.length-1;
+      for(let i=0;i<count;i++){
+        const a=vertices[i],b=vertices[(i+1)%vertices.length],bulge=num(a.bulge,0);
+        if(Math.abs(bulge)>1e-10)points.push(...bulgePoints(a,b,bulge).slice(1));else points.push({x:b.x,y:b.y});
+      }
+      if(closed&&near(points[0],points.at(-1)))points.pop();
+      return [{points,closed}];
+    }
+
+    function bulgePoints(a,b,bulge){
+      const dx=b.x-a.x,dy=b.y-a.y;if(!Math.hypot(dx,dy))return[a,b];
+      const center={x:(a.x+b.x)/2-dy*(1-bulge*bulge)/(4*bulge),y:(a.y+b.y)/2+dx*(1-bulge*bulge)/(4*bulge)};
+      const radius=Math.hypot(a.x-center.x,a.y-center.y),start=Math.atan2(a.y-center.y,a.x-center.x),sweep=4*Math.atan(bulge);
+      const count=Math.max(2,Math.ceil(Math.abs(sweep)/(Math.PI/90)));
+      return Array.from({length:count+1},(_,i)=>{const t=start+sweep*i/count;return{x:center.x+radius*Math.cos(t),y:center.y+radius*Math.sin(t)}});
+    }
+
+    function ellipse(center,major,ratio,start,end){
+      start=num(start,0);end=num(end,Math.PI*2);let sweep=end-start;
+      if(Math.abs(sweep)<1e-10)sweep=Math.PI*2;while(sweep<0)sweep+=Math.PI*2;
+      const minor={x:-major.y*ratio,y:major.x*ratio},count=Math.max(12,Math.ceil(sweep/(Math.PI/90)));
+      const points=Array.from({length:count+1},(_,i)=>{const t=start+sweep*i/count;return{x:center.x+major.x*Math.cos(t)+minor.x*Math.sin(t),y:center.y+major.y*Math.cos(t)+minor.y*Math.sin(t)}});
+      if(Math.abs(sweep-Math.PI*2)<1e-8)points.pop();return points;
+    }
+
+    function spline(e){
+      const cp=e.controlPoints||e.fitPoints||[],degree=+(e.degreeOfSpline??e.degree??3),knots=e.knotValues||e.knots||[];
+      if(cp.length<2)return cp;if(knots.length<cp.length+degree+1)return cp;
+      const weights=e.weights||cp.map(()=>1),n=cp.length-1,start=knots[degree],end=knots[n+1],count=Math.max(32,cp.length*16),out=[];
+      for(let sample=0;sample<=count;sample++){
+        const t=sample===count?end:start+(end-start)*sample/count;let span=degree;
+        if(t>=knots[n+1])span=n;else while(span<n&&!(t>=knots[span]&&t<knots[span+1]))span++;
+        const d=[];
+        for(let j=0;j<=degree;j++){const k=span-degree+j,w=num(weights[k],1),p=cp[k];d[j]={x:p.x*w,y:p.y*w,w}}
+        for(let r=1;r<=degree;r++)for(let j=degree;j>=r;j--){const k=span-degree+j,den=knots[k+degree-r+1]-knots[k],alpha=den?(t-knots[k])/den:0;d[j]={x:(1-alpha)*d[j-1].x+alpha*d[j].x,y:(1-alpha)*d[j-1].y+alpha*d[j].y,w:(1-alpha)*d[j-1].w+alpha*d[j].w}}
+        const p=d[degree];out.push({x:p.x/p.w,y:p.y/p.w});
+      }return out;
+    }
+
+    function getBounds(){
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      state.paths.forEach(path=>path.points.forEach(p=>{if(Number.isFinite(p.x)&&Number.isFinite(p.y)){minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}}));
+      return Number.isFinite(minX)?{minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,centerX:(minX+maxX)/2,centerY:(minY+maxY)/2}:null;
+    }
+
+    function updateSummary(){const b=state.bounds,d=Math.max(b.width,b.height)<10?3:2;fileSummary.textContent=`${fmt(b.width,d)} × ${fmt(b.height,d)} ${state.unit[1]} · ${state.entityCount} entities · ${state.paths.length} drawable paths · ${state.unit[0]}`}
+    function setStatus(message,error=false){status.textContent=message;status.classList.toggle('error',error)}
+    function resize(){const r=wrap.getBoundingClientRect(),d=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));render()}
+    function fitDrawing(){if(!state.bounds)return;const r=wrap.getBoundingClientRect(),m=50,w=Math.max(state.bounds.width,1e-9),h=Math.max(state.bounds.height,1e-9);state.zoom=Math.max(1e-6,Math.min((r.width-m*2)/w,(r.height-m*2)/h));state.panX=-state.bounds.centerX*state.zoom;state.panY=state.bounds.centerY*state.zoom;render()}
+    function toScreen(p){const r=wrap.getBoundingClientRect();return{x:r.width/2+state.panX+p.x*state.zoom,y:r.height/2+state.panY-p.y*state.zoom}}
+    function toCad(x,y){const r=wrap.getBoundingClientRect();return{x:(x-r.width/2-state.panX)/state.zoom,y:(r.height/2+state.panY-y)/state.zoom}}
+
+    function render(){
+      const r=wrap.getBoundingClientRect(),d=window.devicePixelRatio||1;ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle='#020617';ctx.fillRect(0,0,r.width,r.height);if(!state.paths.length)return;
+      const o=toScreen({x:0,y:0});ctx.strokeStyle='rgba(148,163,184,.18)';ctx.lineWidth=1;ctx.beginPath();if(o.x>=0&&o.x<=r.width){ctx.moveTo(o.x,0);ctx.lineTo(o.x,r.height)}if(o.y>=0&&o.y<=r.height){ctx.moveTo(0,o.y);ctx.lineTo(r.width,o.y)}ctx.stroke();
+      ctx.strokeStyle='#f43f5e';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.lineJoin='round';
+      state.paths.forEach(path=>{const first=toScreen(path.points[0]);ctx.beginPath();ctx.moveTo(first.x,first.y);for(let i=1;i<path.points.length;i++){const p=toScreen(path.points[i]);ctx.lineTo(p.x,p.y)}if(path.closed)ctx.closePath();ctx.stroke()});
+      const tl=toScreen({x:state.bounds.minX,y:state.bounds.maxY}),br=toScreen({x:state.bounds.maxX,y:state.bounds.minY});ctx.strokeStyle='rgba(56,189,248,.35)';ctx.setLineDash([4,4]);ctx.strokeRect(tl.x,tl.y,br.x-tl.x,br.y-tl.y);ctx.setLineDash([]);
+    }
+
+    function zoom(factor,x,y){if(!state.paths.length)return;const before=toCad(x,y);state.zoom=Math.max(1e-6,Math.min(1e6,state.zoom*factor));const after=toScreen(before);state.panX+=x-after.x;state.panY+=y-after.y;render()}
+    fitBtn.onclick=fitDrawing;
+    zoomIn.onclick=()=>{const r=wrap.getBoundingClientRect();zoom(1.25,r.width/2,r.height/2)};
+    zoomOut.onclick=()=>{const r=wrap.getBoundingClientRect();zoom(.8,r.width/2,r.height/2)};
+    canvas.onwheel=e=>{e.preventDefault();const r=canvas.getBoundingClientRect();zoom(e.deltaY<0?1.15:.87,e.clientX-r.left,e.clientY-r.top)};
+    canvas.onpointerdown=e=>{if(!state.paths.length)return;state.drag=true;state.dragX=e.clientX-state.panX;state.dragY=e.clientY-state.panY;canvas.setPointerCapture(e.pointerId);canvas.classList.add('dragging')};
+    canvas.onpointermove=e=>{const r=canvas.getBoundingClientRect();if(state.drag){state.panX=e.clientX-state.dragX;state.panY=e.clientY-state.dragY;render()}if(state.paths.length){const p=toCad(e.clientX-r.left,e.clientY-r.top);coordinates.textContent=`X: ${fmt(p.x,3)} ${state.unit[1]}   Y: ${fmt(p.y,3)} ${state.unit[1]}`}};
+    const endDrag=e=>{state.drag=false;canvas.classList.remove('dragging');if(e.pointerId!=null&&canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId)};
+    canvas.onpointerup=endDrag;canvas.onpointercancel=endDrag;
+
+    function mul(l,r){return{a:l.a*r.a+l.c*r.b,b:l.b*r.a+l.d*r.b,c:l.a*r.c+l.c*r.d,d:l.b*r.c+l.d*r.d,e:l.a*r.e+l.c*r.f+l.e,f:l.b*r.e+l.d*r.f+l.f}}
+    function tf(p,m){return{x:m.a*p.x+m.c*p.y+m.e,y:m.b*p.x+m.d*p.y+m.f}}
+    function translate(x,y){return{a:1,b:0,c:0,d:1,e:x,f:y}}
+    function scale(x,y){return{a:x,b:0,c:0,d:y,e:0,f:0}}
+    function rotate(t){const c=Math.cos(t),s=Math.sin(t);return{a:c,b:s,c:-s,d:c,e:0,f:0}}
+    function dedupe(points){return points.filter((p,i)=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&(!i||!near(p,points[i-1])))}
+    function near(a,b){return Math.abs(a.x-b.x)<1e-10&&Math.abs(a.y-b.y)<1e-10}
+    function num(value,fallback){const n=Number(value);return Number.isFinite(n)?n:fallback}
+    function fmt(value,places){return Number(value).toLocaleString(undefined,{maximumFractionDigits:places})}
+
+    function parseFallback(text){
+      const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/),pairs=[];for(let i=0;i+1<lines.length;i+=2)pairs.push({code:+lines[i].trim(),value:lines[i+1].trim()});
+      const header={};for(let i=0;i+1<pairs.length;i++)if(pairs[i].code===9&&pairs[i].value==='$INSUNITS')header.$INSUNITS=+pairs[i+1].value;
+      const entities=[];let section='',i=0;
+      while(i<pairs.length){const p=pairs[i];if(p.code===0&&p.value==='SECTION'&&pairs[i+1]?.code===2){section=pairs[i+1].value;i+=2;continue}if(p.code===0&&p.value==='ENDSEC'){section='';i++;continue}if(section!=='ENTITIES'||p.code!==0){i++;continue}
+        const type=p.value;i++;
+        if(type==='POLYLINE'){const head=[];while(i<pairs.length&&pairs[i].code!==0)head.push(pairs[i++]);const vertices=[];while(pairs[i]?.code===0&&pairs[i].value==='VERTEX'){i++;const data=[];while(i<pairs.length&&pairs[i].code!==0)data.push(pairs[i++]);vertices.push({x:nth(data,10),y:nth(data,20),bulge:nth(data,42,0)})}if(pairs[i]?.value==='SEQEND')i++;entities.push({type,vertices,layer:str(head,8,'0'),shape:(nth(head,70,0)&1)!==0});continue}
+        const data=[];while(i<pairs.length&&pairs[i].code!==0)data.push(pairs[i++]);entities.push(parseFallbackEntity(type,data));
+      }return{header,entities:entities.filter(Boolean),blocks:{}};
+    }
+    function parseFallbackEntity(type,d){const layer=str(d,8,'0');
+      if(type==='LINE')return{type,layer,vertices:[{x:nth(d,10),y:nth(d,20)},{x:nth(d,11),y:nth(d,21)}]};
+      if(type==='CIRCLE'||type==='ARC'){const e={type,layer,center:{x:nth(d,10),y:nth(d,20)},radius:nth(d,40)};if(type==='ARC'){e.startAngle=nth(d,50)*Math.PI/180;e.endAngle=nth(d,51)*Math.PI/180}return e}
+      if(type==='LWPOLYLINE'){const vertices=[];d.forEach(p=>{if(p.code===10)vertices.push({x:+p.value,y:0,bulge:0});else if(p.code===20&&vertices.length)vertices.at(-1).y=+p.value;else if(p.code===42&&vertices.length)vertices.at(-1).bulge=+p.value});return{type,layer,vertices,shape:(nth(d,70,0)&1)!==0}}
+      if(type==='ELLIPSE')return{type,layer,center:{x:nth(d,10),y:nth(d,20)},majorAxisEndPoint:{x:nth(d,11),y:nth(d,21)},axisRatio:nth(d,40,1),startAngle:nth(d,41,0),endAngle:nth(d,42,Math.PI*2)};
+      if(type==='POINT')return{type,layer,position:{x:nth(d,10),y:nth(d,20)}};return{type,layer};
+    }
+    function nth(pairs,code,fallback=0){const p=pairs.find(x=>x.code===code);return p?num(p.value,fallback):fallback}
+    function str(pairs,code,fallback=''){return pairs.find(x=>x.code===code)?.value??fallback}
+
+    new ResizeObserver(resize).observe(wrap);resize();
+    window.DXFPreview=Object.freeze({loadText:loadDxfText,loadSvg:loadSvgText,getSnapshot:()=>({paths:state.paths.map(p=>({points:p.points.map(q=>({...q})),closed:p.closed,type:p.type})),bounds:state.bounds&&({...state.bounds}),unit:[...state.unit],unsupported:[...state.unsupported]})});
+  })();
+  </script>
+</body>
+</html>

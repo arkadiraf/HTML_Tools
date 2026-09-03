@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerber2Stencil — SMD Laser Stencil Generator</title>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://unpkg.com/gerber-to-svg@4.1.0/dist/gerber-to-svg.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --primary: #38bdf8;
+      --laser-accent: #f43f5e;
+      --success: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: clamp(0.75rem, 2vh, 1.5rem);
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .container {
+      max-width: 1100px;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: clamp(0.5rem, 1.5vh, 1rem);
+      flex: 0 0 auto;
+    }
+
+    header h1 {
+      margin: 0 0 0.5rem 0;
+      font-size: clamp(1.65rem, 3.5vh, 2.2rem);
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    header h1 span {
+      color: var(--primary);
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: clamp(0.75rem, 2vh, 1.25rem);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background-color 0.2s;
+      flex: 0 0 auto;
+    }
+
+    .upload-zone p { margin: 0; }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--primary);
+      background-color: #24344d;
+    }
+
+    .upload-zone input {
+      display: none;
+    }
+
+    #status {
+      min-height: 1.25rem;
+      margin-top: 0.5rem;
+      text-align: center;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      flex: 0 0 auto;
+    }
+
+    .offset-controls {
+      min-height: 2rem;
+      margin-top: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex: 0 0 auto;
+    }
+
+    .offset-controls input {
+      width: 6rem;
+      padding: 0.35rem 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: #020617;
+      color: var(--text);
+      font: inherit;
+      text-align: right;
+    }
+
+    .offset-hint { font-size: 0.75rem; }
+
+    .previews {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(0.75rem, 1.5vw, 1.25rem);
+      margin-top: 0.5rem;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .layer-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: clamp(0.65rem, 1.5vh, 1rem);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 0;
+    }
+
+    .layer-card h3 {
+      margin: 0 0 0.25rem 0;
+      color: var(--primary);
+      font-size: 1.1rem;
+    }
+
+    .layer-filename {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      word-break: break-all;
+    }
+
+    .svg-wrapper {
+      width: 100%;
+      min-height: 0;
+      height: auto;
+      flex: 1 1 auto;
+      background: #020617;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+
+    .svg-wrapper svg {
+      width: 90% !important;
+      height: 90% !important;
+      max-height: 100%;
+      fill: var(--laser-accent) !important;
+      stroke: var(--laser-accent) !important;
+    }
+
+    .svg-wrapper > .source-svg.offset-active { opacity: 0.18; }
+
+    .svg-wrapper > .offset-preview {
+      position: absolute;
+      inset: 5%;
+      width: 90% !important;
+      height: 90% !important;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .offset-preview .original-contour {
+      fill: none !important;
+      stroke: var(--primary) !important;
+      stroke-width: 0.08;
+      stroke-dasharray: 0.25 0.18;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .offset-preview .adjusted-contour {
+      fill: rgba(244, 63, 94, 0.48) !important;
+      stroke: var(--laser-accent) !important;
+      stroke-width: 0.1;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .btn-download {
+      margin-top: 0.6rem;
+      flex: 1 1 0;
+      padding: 0.6rem 1rem;
+      background-color: var(--border);
+      color: var(--text-muted);
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: not-allowed;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background-color 0.2s, color 0.2s, transform 0.1s;
+    }
+
+    .download-row {
+      width: 100%;
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    .btn-download.active {
+      background-color: #0284c7;
+      color: #ffffff;
+      cursor: pointer;
+    }
+
+    .btn-download.active:hover {
+      background-color: var(--primary);
+      color: #0f172a;
+    }
+
+    .btn-download.active:active {
+      transform: scale(0.98);
+    }
+
+    .empty-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+      body { height: auto; min-height: 100dvh; overflow: auto; }
+      .container { height: auto; }
+      .previews { grid-template-columns: 1fr; }
+      .svg-wrapper { min-height: 320px; }
+    }
+
+    @media (max-height: 650px) and (min-width: 769px) {
+      .subtitle { display: none; }
+      header { margin-bottom: 0.4rem; }
+      .upload-zone { padding: 0.6rem; }
+      .layer-card h3 { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Gerber<span>2</span>Stencil</h1>
+    <p class="subtitle">Preview, compensate, and export RS-274X solder paste layers as DXF or SVG</p>
+  </header>
+
+  <div class="upload-zone" id="dropZone">
+    <p><strong>Click to browse</strong> or drag & drop Gerber archive (<code>.zip</code>) or paste files (<code>.gtp</code>, <code>.gbp</code>)</p>
+    <input type="file" id="fileInput" multiple accept=".zip,.gtp,.gbp,.gsp,.spt,.spb,.paste,.gbr,.ger" />
+  </div>
+
+  <div id="status"></div>
+
+  <div class="offset-controls">
+    <label for="apertureOffset">Aperture offset</label>
+    <input id="apertureOffset" type="number" min="-0.5" max="0.5" step="0.01" value="0.00" inputmode="decimal" />
+    <span>mm</span>
+    <span class="offset-hint">positive enlarges holes; negative shrinks them · blue dashed = original</span>
+  </div>
+
+  <div class="previews">
+    <div class="layer-card">
+      <h3>Top Stencil Layer (GTP)</h3>
+      <div class="layer-filename" id="topFileName">No file loaded</div>
+      <div class="svg-wrapper" id="topSvgContainer">
+        <span class="empty-placeholder">Awaiting Top Paste Gerber...</span>
+      </div>
+      <div class="download-row">
+        <button class="btn-download" id="topDownloadBtn" disabled>Download DXF</button>
+        <button class="btn-download" id="topSvgDownloadBtn" disabled>Download SVG</button>
+      </div>
+    </div>
+
+    <div class="layer-card">
+      <h3>Bottom Stencil Layer (GBP)</h3>
+      <div class="layer-filename" id="bottomFileName">No file loaded</div>
+      <div class="svg-wrapper" id="bottomSvgContainer">
+        <span class="empty-placeholder">Awaiting Bottom Paste Gerber...</span>
+      </div>
+      <div class="download-row">
+        <button class="btn-download" id="bottomDownloadBtn" disabled>Download DXF</button>
+        <button class="btn-download" id="bottomSvgDownloadBtn" disabled>Download SVG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const status = document.getElementById('status');
+  const apertureOffsetInput = document.getElementById('apertureOffset');
+
+  const topDownloadBtn = document.getElementById('topDownloadBtn');
+  const bottomDownloadBtn = document.getElementById('bottomDownloadBtn');
+  const topSvgDownloadBtn = document.getElementById('topSvgDownloadBtn');
+  const bottomSvgDownloadBtn = document.getElementById('bottomSvgDownloadBtn');
+
+  let parsedLayers = {
+    top: { name: '', svgNode: null, contours: null },
+    bottom: { name: '', svgNode: null, contours: null }
+  };
+
+  let stencilOffsetMm = 0;
+  let offsetPreviewFrame = 0;
+
+  apertureOffsetInput.addEventListener('input', () => {
+    const requested = Number(apertureOffsetInput.value);
+    stencilOffsetMm = Number.isFinite(requested) ? Math.max(-0.5, Math.min(0.5, requested)) : 0;
+    cancelAnimationFrame(offsetPreviewFrame);
+    offsetPreviewFrame = requestAnimationFrame(updateAllOffsetPreviews);
+  });
+
+  const TOP_PASTE_PATTERNS = [
+    /\.gtp$/i,
+    /\.spt$/i,
+    /\.tcream(\.gbr)?$/i,
+    /top.*paste/i,
+    /paste.*top/i,
+    /f[._-]paste/i,
+    /f_cream/i
+  ];
+
+  const BOTTOM_PASTE_PATTERNS = [
+    /\.gbp$/i,
+    /\.spb$/i,
+    /\.bcream(\.gbr)?$/i,
+    /bottom.*paste/i,
+    /paste.*bottom/i,
+    /paste.*bot/i,
+    /b[._-]paste/i,
+    /b_cream/i
+  ];
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      handleFiles(e.dataTransfer.files);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) {
+      handleFiles(e.target.files);
+    }
+  });
+
+  async function handleFiles(files) {
+    status.innerText = 'Processing files...';
+    let loadedFiles = {};
+
+    try {
+      for (const file of files) {
+        if (file.name.toLowerCase().endsWith('.zip')) {
+          status.innerText = `Extracting ${file.name}...`;
+          const zip = await JSZip.loadAsync(file);
+          for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+            if (!zipEntry.dir) {
+              loadedFiles[relativePath] = await zipEntry.async('text');
+            }
+          }
+        } else {
+          loadedFiles[file.name] = await file.text();
+        }
+      }
+
+      await identifyAndRenderLayers(loadedFiles);
+    } catch (err) {
+      console.error(err);
+      status.innerText = `Error: ${err.message}`;
+    }
+  }
+
+  function matchesAny(fileName, patterns) {
+    return patterns.some(pattern => pattern.test(fileName));
+  }
+
+  async function identifyAndRenderLayers(fileMap) {
+    let topFile = null;
+    let bottomFile = null;
+
+    for (const [name, content] of Object.entries(fileMap)) {
+      if (!topFile && matchesAny(name, TOP_PASTE_PATTERNS)) {
+        topFile = { name, content };
+      } else if (!bottomFile && matchesAny(name, BOTTOM_PASTE_PATTERNS)) {
+        bottomFile = { name, content };
+      }
+    }
+
+    let foundCount = 0;
+
+    if (topFile) {
+      await renderGerber(topFile.content, 'topSvgContainer', 'topFileName', topFile.name, 'top', topDownloadBtn);
+      foundCount++;
+    } else {
+      clearLayer('topSvgContainer', 'topFileName', 'topDownloadBtn', 'No top paste layer found.', 'top');
+    }
+
+    if (bottomFile) {
+      await renderGerber(bottomFile.content, 'bottomSvgContainer', 'bottomFileName', bottomFile.name, 'bottom', bottomDownloadBtn);
+      foundCount++;
+    } else {
+      clearLayer('bottomSvgContainer', 'bottomFileName', 'bottomDownloadBtn', 'No bottom paste layer found.', 'bottom');
+    }
+
+    status.innerText = `Identified and rendered ${foundCount} solder paste layer(s).`;
+  }
+
+  function parseGerberAsync(gerberString) {
+    return new Promise((resolve, reject) => {
+      try {
+        const converter = gerberToSvg(gerberString, (err, svgString) => {
+          if (err) return reject(err);
+          resolve(svgString);
+        });
+
+        if (converter && typeof converter.on === 'function') {
+          let chunks = '';
+          converter.on('data', chunk => chunks += chunk);
+          converter.on('end', () => resolve(chunks));
+          converter.on('error', err => reject(err));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  async function renderGerber(gerberString, containerId, labelId, fileName, layerKey, btn) {
+    const container = document.getElementById(containerId);
+    const label = document.getElementById(labelId);
+
+    label.innerText = fileName;
+    container.innerHTML = '<span class="empty-placeholder">Rendering layer...</span>';
+
+    try {
+      const svgString = await parseGerberAsync(gerberString);
+      if (!svgString || typeof svgString !== 'string') {
+        throw new Error('Parser produced an empty SVG output.');
+      }
+      container.innerHTML = svgString;
+
+      const svgEl = container.querySelector('svg');
+      svgEl.classList.add('source-svg');
+      parsedLayers[layerKey] = { name: fileName, svgNode: svgEl, contours: null };
+      updateLayerOffsetPreview(layerKey);
+
+      btn.disabled = false;
+      btn.classList.add('active');
+      const svgBtn = layerKey === 'top' ? topSvgDownloadBtn : bottomSvgDownloadBtn;
+      svgBtn.disabled = false;
+      svgBtn.classList.add('active');
+    } catch (e) {
+      console.error(e);
+      container.innerHTML = `<span style="color: #ef4444; padding: 1rem; text-align: center;">Failed to render: ${e.message}</span>`;
+      btn.disabled = true;
+      btn.classList.remove('active');
+      const svgBtn = layerKey === 'top' ? topSvgDownloadBtn : bottomSvgDownloadBtn;
+      svgBtn.disabled = true;
+      svgBtn.classList.remove('active');
+    }
+  }
+
+  function clearLayer(containerId, labelId, btnId, msg, layerKey) {
+    document.getElementById(labelId).innerText = 'Not found';
+    document.getElementById(containerId).innerHTML = `<span class="empty-placeholder">${msg}</span>`;
+    const btn = document.getElementById(btnId);
+    btn.disabled = true;
+    btn.classList.remove('active');
+    const svgBtn = layerKey === 'top' ? topSvgDownloadBtn : bottomSvgDownloadBtn;
+    svgBtn.disabled = true;
+    svgBtn.classList.remove('active');
+    parsedLayers[layerKey] = { name: '', svgNode: null, contours: null };
+  }
+
+  function updateAllOffsetPreviews() {
+    updateLayerOffsetPreview('top');
+    updateLayerOffsetPreview('bottom');
+    const sign = stencilOffsetMm > 0 ? '+' : '';
+    status.innerText = `Aperture offset: ${sign}${stencilOffsetMm.toFixed(2)} mm. Preview and exports are synchronized.`;
+  }
+
+  function updateLayerOffsetPreview(layerKey) {
+    const layer = parsedLayers[layerKey];
+    if (!layer || !layer.svgNode) return;
+    const container = layer.svgNode.parentElement;
+    container.querySelector('.offset-preview')?.remove();
+    layer.svgNode.classList.toggle('offset-active', Math.abs(stencilOffsetMm) > 1e-9);
+    if (Math.abs(stencilOffsetMm) <= 1e-9) return;
+
+    try {
+      if (!layer.contours) layer.contours = extractSvgContours(layer.svgNode).contours;
+      const adjusted = offsetStencilContours(layer.contours, stencilOffsetMm);
+      const bounds = contourBounds(layer.contours);
+      const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      overlay.classList.add('offset-preview');
+      overlay.setAttribute('viewBox', `${dxfNumber(bounds.minX)} ${dxfNumber(-bounds.maxY)} ${dxfNumber(bounds.width)} ${dxfNumber(bounds.height)}`);
+      overlay.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      overlay.innerHTML = contoursToPathMarkup(layer.contours, 'original-contour') + contoursToPathMarkup(adjusted, 'adjusted-contour');
+      container.appendChild(overlay);
+    } catch (error) {
+      console.error(error);
+      status.innerText = `Offset preview failed: ${error.message}`;
+    }
+  }
+
+  // Hook Download Handlers
+  topDownloadBtn.addEventListener('click', () => exportLayerToDxf('top'));
+  bottomDownloadBtn.addEventListener('click', () => exportLayerToDxf('bottom'));
+  topSvgDownloadBtn.addEventListener('click', () => exportLayerToSvg('top'));
+  bottomSvgDownloadBtn.addEventListener('click', () => exportLayerToSvg('bottom'));
+
+  function exportLayerToSvg(layerKey) {
+    const layerData = parsedLayers[layerKey];
+    if (!layerData || !layerData.svgNode) return;
+    try {
+      const sourceName = layerData.name.split(/[\\/]/).pop();
+      const baseName = sourceName.replace(/\.[^/.]+$/, '');
+      if (!layerData.contours) layerData.contours = extractSvgContours(layerData.svgNode).contours;
+      const contours = offsetStencilContours(layerData.contours, stencilOffsetMm);
+      const svgText = buildStencilSvg(contours);
+      downloadTextFile(svgText, `${baseName}_stencil.svg`, 'image/svg+xml;charset=utf-8');
+      status.innerText = `Exported ${baseName}_stencil.svg with ${formatSignedOffset(stencilOffsetMm)} mm offset.`;
+    } catch (error) {
+      console.error(error);
+      status.innerText = `SVG export failed: ${error.message}`;
+    }
+  }
+
+  function downloadTextFile(text, fileName, mimeType) {
+    const url = URL.createObjectURL(new Blob([text], { type: mimeType }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportLayerToDxf(layerKey) {
+    const layerData = parsedLayers[layerKey];
+    if (!layerData || !layerData.svgNode) return;
+
+    try {
+      const sourceName = layerData.name.split(/[\\/]/).pop();
+      const baseName = sourceName.replace(/\.[^/.]+$/, '');
+      const dxfString = convertSvgToDxf(layerData.svgNode, stencilOffsetMm, layerData.contours);
+      const blob = new Blob([dxfString], { type: 'application/dxf;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${baseName}_stencil.dxf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const hasComplexPolarity = layerData.svgNode.querySelector('[mask], [clip-path]');
+      status.innerText = hasComplexPolarity
+        ? `Exported ${link.download} with ${formatSignedOffset(stencilOffsetMm)} mm offset. Note: this layer uses clear-polarity masks; inspect the DXF before cutting.`
+        : `Exported ${link.download} with ${formatSignedOffset(stencilOffsetMm)} mm offset.`;
+    } catch (error) {
+      console.error(error);
+      status.innerText = `DXF export failed: ${error.message}`;
+    }
+  }
+
+  // --- SVG to AutoCAD R12 DXF Converter ---
+  // gerber-to-svg uses 1000 SVG units per Gerber unit and renders aperture
+  // flashes through <use> elements. Export the rendered tree (not <defs>),
+  // flatten transforms/curves, and always write a millimetre DXF.
+  const DXF_CURVE_TOLERANCE_MM = 0.025;
+
+  function extractSvgContours(svgElement) {
+    const unit = getSvgUnit(svgElement);
+    const mmPerSvgUnit = (unit === 'in' ? 25.4 : 1) / 1000;
+    const contours = [];
+    let ignoredMasks = false;
+
+    function addContour(points, closed = true) {
+      const clean = removeDuplicatePoints(points, 1e-7);
+      if (closed && clean.length > 2 && pointsNear(clean[0], clean[clean.length - 1])) clean.pop();
+      if (clean.length >= (closed ? 3 : 2) && clean.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
+        contours.push({ points: clean, closed });
+      }
+    }
+
+    function transformPoints(points, matrix) {
+      return points.map(point => {
+        const p = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+        // SVG's final display coordinate system is Y-down; DXF is Y-up.
+        return { x: p.x * mmPerSvgUnit, y: -p.y * mmPerSvgUnit };
+      });
+    }
+
+    function visit(node, parentMatrix, fromUse = false) {
+      if (!(node instanceof SVGElement)) return;
+      const tag = node.localName.toLowerCase();
+      if (!fromUse && (tag === 'defs' || tag === 'mask' || tag === 'clippath')) return;
+      if (node.hasAttribute('mask') || node.hasAttribute('clip-path')) ignoredMasks = true;
+
+      let matrix = parentMatrix.multiply(getLocalTransform(node));
+
+      if (tag === 'use') {
+        const x = numberAttr(node, 'x');
+        const y = numberAttr(node, 'y');
+        matrix = matrix.multiply(new DOMMatrix().translate(x, y));
+        const href = node.getAttribute('href') || node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+        if (href && href.startsWith('#')) {
+          const referenceId = href.slice(1);
+          const referenced = Array.from(svgElement.querySelectorAll('[id]'))
+            .find(candidate => candidate.id === referenceId);
+          if (referenced) visit(referenced, matrix, true);
+        }
+        return;
+      }
+
+      if (tag === 'g' || tag === 'svg' || tag === 'symbol') {
+        Array.from(node.children).forEach(child => visit(child, matrix, fromUse));
+        return;
+      }
+
+      const geometry = elementToPolylines(node, mmPerSvgUnit);
+      if (!geometry.length) return;
+
+      const strokeWidth = getStrokeWidth(node);
+      const fill = effectivePaint(node, 'fill');
+      const stroke = effectivePaint(node, 'stroke');
+
+      geometry.forEach(polyline => {
+        const transformed = transformPoints(polyline.points, matrix);
+
+        // SVG implicitly closes open subpaths for filling.
+        if (fill !== 'none' && transformed.length > 2) addContour(transformed, true);
+
+        // Gerber draws are strokes whose cut contour is the aperture outline,
+        // not the SVG centreline. Expand them into closed laser paths.
+        if (stroke !== 'none' && strokeWidth > 0) {
+          const scale = matrixScale(matrix) * mmPerSvgUnit;
+          const outlines = outlinePolyline(transformed, strokeWidth * scale / 2, polyline.closed);
+          outlines.forEach(outline => addContour(outline, true));
+        } else if (fill === 'none' && stroke !== 'none') {
+          addContour(transformed, polyline.closed);
+        }
+      });
+    }
+
+    visit(svgElement, new DOMMatrix());
+
+    if (!contours.length) throw new Error('No cut contours were found in the rendered Gerber layer.');
+
+    return { contours, ignoredMasks };
+  }
+
+  function convertSvgToDxf(svgElement, offsetMm = 0, cachedContours = null) {
+    const extracted = cachedContours ? { contours: cachedContours, ignoredMasks: Boolean(svgElement.querySelector('[mask], [clip-path]')) } : extractSvgContours(svgElement);
+    const contours = offsetStencilContours(extracted.contours, offsetMm);
+    const ignoredMasks = extracted.ignoredMasks;
+
+    const bounds = contourBounds(contours);
+
+    const entities = contours.map(contour => formatDxfPolyline(contour.points, contour.closed));
+    const lines = [
+      '0', 'SECTION', '2', 'HEADER',
+      '9', '$ACADVER', '1', 'AC1009',
+      '9', '$INSUNITS', '70', '4',
+      '9', '$MEASUREMENT', '70', '1',
+      '9', '$EXTMIN', '10', dxfNumber(bounds.minX), '20', dxfNumber(bounds.minY), '30', '0.0',
+      '9', '$EXTMAX', '10', dxfNumber(bounds.maxX), '20', dxfNumber(bounds.maxY), '30', '0.0',
+      '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'TABLES',
+      '0', 'TABLE', '2', 'LAYER', '70', '1',
+      '0', 'LAYER', '2', 'STENCIL_CUT', '70', '0', '62', '1', '6', 'CONTINUOUS',
+      '0', 'ENDTAB', '0', 'ENDSEC',
+      '0', 'SECTION', '2', 'ENTITIES',
+      ...entities,
+      '0', 'ENDSEC', '0', 'EOF'
+    ];
+
+    if (ignoredMasks) {
+      console.warn('This SVG contains masks or clip paths. Clear-polarity regions may require manual DXF review.');
+    }
+    return lines.join('\r\n');
+  }
+
+  function offsetStencilContours(contours, offsetMm) {
+    if (Math.abs(offsetMm) <= 1e-9) {
+      return contours.map(contour => ({ points: contour.points.map(point => ({ ...point })), closed: contour.closed }));
+    }
+
+    return contours.flatMap(contour => {
+      if (!contour.closed || contour.points.length < 3) return [contour];
+      const originalArea = signedArea(contour.points);
+      if (Math.abs(originalArea) < 1e-10) return [];
+      // offsetSide uses a left-hand normal. For CCW contours the interior is
+      // left, so a positive aperture expansion must move to the right.
+      const sideDistance = originalArea > 0 ? -offsetMm : offsetMm;
+      const points = removeDuplicatePoints(offsetSide(contour.points, sideDistance, true), 1e-7);
+      if (points.length < 3) return [];
+      const adjustedArea = signedArea(points);
+      if (Math.sign(adjustedArea) !== Math.sign(originalArea)) return [];
+
+      if (offsetMm < 0) {
+        const center = polygonCentroid(contour.points);
+        const crossedCenter = points.some((point, index) =>
+          Math.hypot(point.x - center.x, point.y - center.y) >=
+          Math.hypot(contour.points[index].x - center.x, contour.points[index].y - center.y) - 1e-7
+        );
+        if (crossedCenter || Math.abs(adjustedArea) >= Math.abs(originalArea)) return [];
+      }
+      return [{ points, closed: true }];
+    });
+  }
+
+  function signedArea(points) {
+    return points.reduce((area, point, index) => {
+      const next = points[(index + 1) % points.length];
+      return area + point.x * next.y - next.x * point.y;
+    }, 0) / 2;
+  }
+
+  function polygonCentroid(points) {
+    return points.reduce((center, point) => ({ x: center.x + point.x / points.length, y: center.y + point.y / points.length }), { x: 0, y: 0 });
+  }
+
+  function contourBounds(contours) {
+    if (!contours.length) throw new Error('The selected negative offset removes every aperture.');
+    const points = contours.flatMap(contour => contour.points);
+    const bounds = points.reduce((result, point) => ({
+      minX: Math.min(result.minX, point.x), minY: Math.min(result.minY, point.y),
+      maxX: Math.max(result.maxX, point.x), maxY: Math.max(result.maxY, point.y)
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    bounds.width = Math.max(bounds.maxX - bounds.minX, 1e-9);
+    bounds.height = Math.max(bounds.maxY - bounds.minY, 1e-9);
+    return bounds;
+  }
+
+  function contoursToPathMarkup(contours, className = '') {
+    return contours.map(contour => {
+      const data = contour.points.map((point, index) => `${index ? 'L' : 'M'} ${dxfNumber(point.x)} ${dxfNumber(-point.y)}`).join(' ');
+      return `<path${className ? ` class="${className}"` : ''} d="${data}${contour.closed ? ' Z' : ''}"/>`;
+    }).join('');
+  }
+
+  function buildStencilSvg(contours) {
+    const bounds = contourBounds(contours);
+    const strokeWidth = Math.max(bounds.width, bounds.height) / 10000 || 0.01;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${dxfNumber(bounds.width)}mm" height="${dxfNumber(bounds.height)}mm" viewBox="${dxfNumber(bounds.minX)} ${dxfNumber(-bounds.maxY)} ${dxfNumber(bounds.width)} ${dxfNumber(bounds.height)}">\n  <g fill="none" stroke="#000000" stroke-width="${dxfNumber(strokeWidth)}" vector-effect="non-scaling-stroke">${contoursToPathMarkup(contours)}</g>\n</svg>`;
+  }
+
+  function formatSignedOffset(value) {
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}`;
+  }
+
+  function getSvgUnit(svg) {
+    const width = svg.getAttribute('width') || '';
+    const match = width.trim().match(/(mm|in)\s*$/i);
+    return match ? match[1].toLowerCase() : 'mm';
+  }
+
+  function numberAttr(element, name, fallback = 0) {
+    const value = parseFloat(element.getAttribute(name));
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function getLocalTransform(element) {
+    const list = element.transform && element.transform.baseVal;
+    const consolidated = list && list.numberOfItems ? list.consolidate() : null;
+    return consolidated ? new DOMMatrix([
+      consolidated.matrix.a, consolidated.matrix.b, consolidated.matrix.c,
+      consolidated.matrix.d, consolidated.matrix.e, consolidated.matrix.f
+    ]) : new DOMMatrix();
+  }
+
+  function matrixScale(matrix) {
+    const sx = Math.hypot(matrix.a, matrix.b);
+    const sy = Math.hypot(matrix.c, matrix.d);
+    return (sx + sy) / 2 || 1;
+  }
+
+  function effectivePaint(element, property) {
+    const value = getComputedStyle(element)[property] || element.getAttribute(property) || '';
+    return value.trim().toLowerCase() === 'none' ? 'none' : value;
+  }
+
+  function getStrokeWidth(element) {
+    const value = parseFloat(getComputedStyle(element).strokeWidth || element.getAttribute('stroke-width'));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function elementToPolylines(element, mmPerSvgUnit) {
+    const tag = element.localName.toLowerCase();
+    const maxStep = Math.max(1, DXF_CURVE_TOLERANCE_MM / mmPerSvgUnit * 2);
+
+    if (tag === 'path') return flattenSvgPath(element.getAttribute('d') || '', maxStep);
+
+    if (tag === 'circle' || tag === 'ellipse') {
+      const cx = numberAttr(element, 'cx');
+      const cy = numberAttr(element, 'cy');
+      const rx = tag === 'circle' ? numberAttr(element, 'r') : numberAttr(element, 'rx');
+      const ry = tag === 'circle' ? rx : numberAttr(element, 'ry');
+      if (rx <= 0 || ry <= 0) return [];
+      const count = Math.max(24, Math.min(720, Math.ceil(2 * Math.PI * Math.max(rx, ry) / maxStep)));
+      return [{ closed: true, points: Array.from({ length: count }, (_, i) => {
+        const a = i * Math.PI * 2 / count;
+        return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) };
+      }) }];
+    }
+
+    if (tag === 'rect') {
+      const x = numberAttr(element, 'x');
+      const y = numberAttr(element, 'y');
+      const w = numberAttr(element, 'width');
+      const h = numberAttr(element, 'height');
+      let rx = Math.min(Math.abs(numberAttr(element, 'rx')), w / 2);
+      let ry = Math.min(Math.abs(numberAttr(element, 'ry')), h / 2);
+      if (!rx && ry) rx = ry;
+      if (!ry && rx) ry = rx;
+      if (w <= 0 || h <= 0) return [];
+      if (!rx || !ry) return [{ closed: true, points: [
+        { x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }
+      ] }];
+      return [{ closed: true, points: roundedRectPoints(x, y, w, h, rx, ry, maxStep) }];
+    }
+
+    if (tag === 'polygon' || tag === 'polyline') {
+      const values = (element.getAttribute('points') || '').match(/[+-]?(?:\d*\.\d+|\d+\.?)(?:e[+-]?\d+)?/gi) || [];
+      const points = [];
+      for (let i = 0; i + 1 < values.length; i += 2) points.push({ x: Number(values[i]), y: Number(values[i + 1]) });
+      return points.length > 1 ? [{ points, closed: tag === 'polygon' }] : [];
+    }
+
+    if (tag === 'line') return [{ closed: false, points: [
+      { x: numberAttr(element, 'x1'), y: numberAttr(element, 'y1') },
+      { x: numberAttr(element, 'x2'), y: numberAttr(element, 'y2') }
+    ] }];
+
+    return [];
+  }
+
+  function roundedRectPoints(x, y, w, h, rx, ry, maxStep) {
+    const points = [];
+    const corners = [
+      [x + w - rx, y + ry, -Math.PI / 2], [x + w - rx, y + h - ry, 0],
+      [x + rx, y + h - ry, Math.PI / 2], [x + rx, y + ry, Math.PI]
+    ];
+    const steps = Math.max(3, Math.ceil(Math.PI * Math.max(rx, ry) / (2 * maxStep)));
+    corners.forEach(([cx, cy, start]) => {
+      for (let i = 0; i <= steps; i++) {
+        const a = start + i * Math.PI / (2 * steps);
+        points.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
+      }
+    });
+    return points;
+  }
+
+  function flattenSvgPath(d, maxStep) {
+    if (!d.trim()) return [];
+    const subpaths = splitPathData(d);
+    return subpaths.map(subpath => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', subpath.d);
+      const length = path.getTotalLength();
+      const count = Math.max(1, Math.min(20000, Math.ceil(length / maxStep)));
+      const points = Array.from({ length: count + 1 }, (_, i) => {
+        const p = path.getPointAtLength(length * i / count);
+        return { x: p.x, y: p.y };
+      });
+      return { points, closed: subpath.closed };
+    }).filter(path => path.points.length > 1);
+  }
+
+  // Split compound paths without trying to reimplement Bezier/arc geometry.
+  // Coordinates are normalized to absolute commands so each subpath can be
+  // measured independently by the browser's SVG geometry engine.
+  function splitPathData(d) {
+    const tokens = d.match(/[a-zA-Z]|[+-]?(?:\d*\.\d+|\d+\.?)(?:e[+-]?\d+)?/g) || [];
+    const sizes = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 };
+    const output = [];
+    let current = null, command = '', i = 0, x = 0, y = 0, startX = 0, startY = 0;
+
+    function begin(nx, ny) {
+      if (current) output.push(current);
+      current = { d: `M ${nx} ${ny}`, closed: false };
+      startX = nx; startY = ny;
+    }
+
+    while (i < tokens.length) {
+      if (/^[a-zA-Z]$/.test(tokens[i])) command = tokens[i++];
+      if (!command) break;
+      const upper = command.toUpperCase();
+      const relative = command !== upper;
+      if (upper === 'Z') {
+        if (current) { current.d += ' Z'; current.closed = true; }
+        x = startX; y = startY; command = ''; continue;
+      }
+      const size = sizes[upper];
+      if (!size || i + size > tokens.length) break;
+      const a = tokens.slice(i, i + size).map(Number);
+      i += size;
+
+      if (upper === 'M') {
+        const nx = (relative ? x : 0) + a[0], ny = (relative ? y : 0) + a[1];
+        begin(nx, ny); x = nx; y = ny;
+        command = relative ? 'l' : 'L';
+      } else if (upper === 'H') {
+        x = (relative ? x : 0) + a[0]; current.d += ` L ${x} ${y}`;
+      } else if (upper === 'V') {
+        y = (relative ? y : 0) + a[0]; current.d += ` L ${x} ${y}`;
+      } else {
+        const endpointIndex = upper === 'A' ? 5 : size - 2;
+        const nx = (relative ? x : 0) + a[endpointIndex];
+        const ny = (relative ? y : 0) + a[endpointIndex + 1];
+        const values = a.slice();
+        // Only coordinate pairs are relative; arc radii/flags and rotation are not.
+        const coordinateStart = upper === 'A' ? 5 : 0;
+        if (relative) {
+          for (let k = coordinateStart; k < values.length; k += 2) {
+            values[k] += x; values[k + 1] += y;
+          }
+        }
+        current.d += ` ${upper} ${values.join(' ')}`;
+        x = nx; y = ny;
+      }
+    }
+    if (current) output.push(current);
+    return output;
+  }
+
+  function outlinePolyline(points, radius, closed) {
+    if (radius <= 0 || points.length < 2) return [];
+    const pts = removeDuplicatePoints(points, 1e-8);
+    if (pts.length < 2) return [];
+
+    if (closed) {
+      return [offsetSide(pts, radius, true), offsetSide(pts, -radius, true).reverse()];
+    }
+
+    const left = offsetSide(pts, radius, false);
+    const right = offsetSide(pts, -radius, false).reverse();
+    const result = [...left];
+    appendArc(result, pts[pts.length - 1], left[left.length - 1], right[0], radius, true);
+    result.push(...right);
+    appendArc(result, pts[0], right[right.length - 1], left[0], radius, true);
+    return [result];
+  }
+
+  function offsetSide(points, distance, closed) {
+    const count = points.length;
+    return points.map((p, i) => {
+      const prev = points[(i - 1 + count) % count];
+      const next = points[(i + 1) % count];
+      const a = (!closed && i === 0) ? unitNormal(p, next) : unitNormal(prev, p);
+      const b = (!closed && i === count - 1) ? unitNormal(prev, p) : unitNormal(p, next);
+      const nx = a.x + b.x, ny = a.y + b.y;
+      const divisor = nx * b.x + ny * b.y;
+      const miter = Math.abs(divisor) > 0.2 ? distance / divisor : distance;
+      const limit = Math.abs(distance) * 4;
+      const scale = Math.max(-limit, Math.min(limit, miter));
+      return { x: p.x + nx * scale, y: p.y + ny * scale };
+    });
+  }
+
+  function unitNormal(a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    return { x: -dy / length, y: dx / length };
+  }
+
+  function appendArc(target, center, from, to, radius, clockwise) {
+    let a0 = Math.atan2(from.y - center.y, from.x - center.x);
+    let a1 = Math.atan2(to.y - center.y, to.x - center.x);
+    let sweep = a1 - a0;
+    if (clockwise && sweep > 0) sweep -= Math.PI * 2;
+    if (!clockwise && sweep < 0) sweep += Math.PI * 2;
+    const steps = Math.max(4, Math.ceil(Math.abs(sweep) * radius / DXF_CURVE_TOLERANCE_MM));
+    for (let i = 1; i < steps; i++) {
+      const a = a0 + sweep * i / steps;
+      target.push({ x: center.x + radius * Math.cos(a), y: center.y + radius * Math.sin(a) });
+    }
+  }
+
+  function removeDuplicatePoints(points, epsilon) {
+    return points.filter((point, i) => !i || !pointsNear(point, points[i - 1], epsilon));
+  }
+
+  function pointsNear(a, b, epsilon = 1e-7) {
+    return Math.abs(a.x - b.x) <= epsilon && Math.abs(a.y - b.y) <= epsilon;
+  }
+
+  function dxfNumber(value) {
+    const rounded = Math.abs(value) < 5e-7 ? 0 : value;
+    return rounded.toFixed(6).replace(/\.?0+$/, '');
+  }
+
+  function formatDxfPolyline(points, closed = true) {
+    const lines = ['0', 'POLYLINE', '8', 'STENCIL_CUT', '66', '1', '70', closed ? '1' : '0'];
+    points.forEach(p => lines.push(
+      '0', 'VERTEX', '8', 'STENCIL_CUT', '10', dxfNumber(p.x), '20', dxfNumber(p.y), '30', '0.0'
+    ));
+    lines.push('0', 'SEQEND', '8', 'STENCIL_CUT');
+    return lines.join('\r\n');
+  }
+</script>
+
+</body>
+</html>
