@@ -1245,6 +1245,18 @@
               <button class="preset-chip" data-preset="retro-halftone">Retro Halftone (Bayer 8×8)</button>
               <button class="preset-chip" data-preset="3d-relief">3D Relief (Continuous)</button>
             </div>
+
+            <div style="font-size: 0.68rem; text-transform: uppercase; color: var(--text-subtle); letter-spacing: 0.5px; font-weight: 600; margin-top: 0.25rem;">Creative Effects</div>
+            <div class="presets-container">
+              <button class="preset-chip" data-preset="vintage-newspaper">Vintage Newspaper</button>
+              <button class="preset-chip" data-preset="bold-woodcut">Bold Woodcut</button>
+              <button class="preset-chip" data-preset="stencil-silhouette">Stencil Silhouette</button>
+              <button class="preset-chip" data-preset="negative-blueprint">Negative Blueprint</button>
+              <button class="preset-chip" data-preset="fine-stipple">Fine Stipple</button>
+              <button class="preset-chip" data-preset="technical-drawing">Technical Drawing</button>
+              <button class="preset-chip" data-preset="distressed-stamp">Distressed Stamp</button>
+              <button class="preset-chip" data-preset="comic-ink">Comic Ink</button>
+            </div>
             <div class="preset-note">Image-processing starting points only. Laser power and speed still require a material test.</div>
           </div>
         </div>
@@ -1760,6 +1772,62 @@
         edgeEnable: false, edgeFilter: 'sobel', edgeMode: 'overlay', edgeThresh: 25, edgeBoost: 0,
         blackPoint: 5, whitePoint: 250, sharpen: 15, autoStretch: false,
         ditherMode: 'continuous', threshold: 128
+      },
+      'vintage-newspaper': {
+        brightness: 3, contrast: 28, gamma: 1.10, saturation: -20, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'bt601', invert: false,
+        edgeEnable: true, edgeFilter: 'sobel', edgeMode: 'overlay', edgeThresh: 30, edgeBoost: 30,
+        blackPoint: 12, whitePoint: 242, sharpen: 15, autoStretch: true,
+        ditherMode: 'bayer4', threshold: 138
+      },
+      'bold-woodcut': {
+        brightness: 0, contrast: 50, gamma: 0.95, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: false,
+        edgeEnable: true, edgeFilter: 'highpass', edgeMode: 'darken', edgeThresh: 28, edgeBoost: 90,
+        blackPoint: 30, whitePoint: 220, sharpen: 45, autoStretch: true,
+        ditherMode: 'threshold', threshold: 145
+      },
+      'stencil-silhouette': {
+        brightness: 0, contrast: 70, gamma: 1.0, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: false,
+        edgeEnable: false, edgeFilter: 'sobel', edgeMode: 'overlay', edgeThresh: 25, edgeBoost: 0,
+        blackPoint: 45, whitePoint: 210, sharpen: 10, autoStretch: true,
+        ditherMode: 'threshold', threshold: 135
+      },
+      'negative-blueprint': {
+        brightness: 0, contrast: 35, gamma: 1.0, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: true,
+        edgeEnable: true, edgeFilter: 'sobel', edgeMode: 'edges-only', edgeThresh: 20, edgeBoost: 100,
+        blackPoint: 0, whitePoint: 255, sharpen: 0, autoStretch: false,
+        ditherMode: 'continuous', threshold: 128
+      },
+      'fine-stipple': {
+        brightness: 8, contrast: 12, gamma: 1.20, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: false,
+        edgeEnable: false, edgeFilter: 'sobel', edgeMode: 'overlay', edgeThresh: 25, edgeBoost: 0,
+        blackPoint: 5, whitePoint: 250, sharpen: 10, autoStretch: false,
+        ditherMode: 'jarvis', threshold: 128
+      },
+      'technical-drawing': {
+        brightness: 5, contrast: 35, gamma: 1.0, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'green', invert: false,
+        edgeEnable: true, edgeFilter: 'highpass', edgeMode: 'darken', edgeThresh: 32, edgeBoost: 70,
+        blackPoint: 20, whitePoint: 235, sharpen: 35, autoStretch: true,
+        ditherMode: 'threshold', threshold: 155
+      },
+      'distressed-stamp': {
+        brightness: 0, contrast: 65, gamma: 0.90, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: false,
+        edgeEnable: true, edgeFilter: 'highpass', edgeMode: 'multiply', edgeThresh: 42, edgeBoost: 110,
+        blackPoint: 38, whitePoint: 215, sharpen: 55, autoStretch: false,
+        ditherMode: 'bayer4', threshold: 148
+      },
+      'comic-ink': {
+        brightness: 5, contrast: 48, gamma: 1.05, saturation: 0, hue: 0,
+        mixR: 1.0, mixG: 1.0, mixB: 1.0, grayMethod: 'rec709', invert: false,
+        edgeEnable: true, edgeFilter: 'sobel', edgeMode: 'darken', edgeThresh: 22, edgeBoost: 85,
+        blackPoint: 25, whitePoint: 230, sharpen: 40, autoStretch: true,
+        ditherMode: 'threshold', threshold: 142
       }
     };
 
