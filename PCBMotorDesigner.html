@@ -460,7 +460,7 @@
 
         <div class="form-group">
           <label for="statorCount">Stator Coils</label>
-          <input type="number" id="statorCount" value="6" step="1" min="3" max="36" />
+          <input type="number" id="statorCount" value="6" step="3" min="3" max="36" title="Balanced three-phase designs require a multiple of 3" />
         </div>
 
         <div class="form-group">
@@ -502,6 +502,11 @@
         </div>
 
         <div class="form-group">
+          <label for="magnetThickness">Magnet Thickness [mm]</label>
+          <input type="number" id="magnetThickness" value="2.5" step="0.1" min="0.5" max="20" title="Axial thickness of each rotor magnet" />
+        </div>
+
+        <div class="form-group">
           <label for="magnetGrade">Magnet Grade</label>
           <select id="magnetGrade">
             <option value="N52" selected>N52 NdFeB (High Grade, Br = 1.44 T)</option>
@@ -528,9 +533,9 @@
         </div>
 
         <div class="form-group">
-          <label for="turnsPerLayer">Turns per Layer <span class="hint" id="maxTurnsHint">Rec: 15–19 (Max: ~19)</span></label>
+          <label for="turnsPerLayer">Turns per Layer <span class="hint" id="maxTurnsHint">Max packing: ~27</span></label>
           <div class="input-row">
-            <input type="number" id="turnsPerLayer" value="19" step="1" min="1" max="50" />
+            <input type="number" id="turnsPerLayer" value="27" step="1" min="1" max="2000" />
             <button type="button" class="btn-sm" id="btnMaxTurns" title="Set to maximum possible turns">Max</button>
           </div>
         </div>
@@ -571,13 +576,23 @@
         </div>
 
         <div class="form-group">
-          <label for="dcVoltage">DC Supply Voltage [V]</label>
+          <label for="dcVoltage">H-Bridge DC Bus [V]</label>
           <input type="number" id="dcVoltage" value="3" step="0.1" min="0.1" max="100" />
         </div>
 
         <div class="form-group">
           <label for="ambientTemp">Ambient Temperature [°C]</label>
           <input type="number" id="ambientTemp" value="25" step="1" min="-40" max="120" />
+        </div>
+
+        <div class="form-group">
+          <label for="edgeClearance">Copper-to-Board Edge [mm]</label>
+          <input type="number" id="edgeClearance" value="0.25" step="0.05" min="0.1" max="5" title="Clearance from the trace edge to the outer board and inner bore edges" />
+        </div>
+
+        <div class="form-group">
+          <label for="currentLimit">Driver Current Limit [A] <span class="hint">0 = unlimited</span></label>
+          <input type="number" id="currentLimit" value="0" step="0.05" min="0" max="100" title="Current limit for each independently driven phase; enter 0 for voltage-limited stall" />
         </div>
       </div>
 
@@ -621,7 +636,7 @@
       <div class="viewport-head">
         <div class="model-info">
           <div class="model-title" id="modelTitle">Ø50 mm PCB Motor · 6 Stators · 8 Rotor Magnets · 2 Layers</div>
-          <div class="model-meta" id="modelMeta">Dpitch 35.0 mm · Center Via · 19 turns/layer (38 turns/coil)</div>
+          <div class="model-meta" id="modelMeta">Dpitch 35.0 mm · Independent phase H-bridges · 27 turns/layer (54 turns/coil)</div>
         </div>
 
         <div class="canvas-controls">
@@ -650,43 +665,43 @@
       <div class="results-grid">
         <!-- Row 1: Electromechanical & Torque -->
         <div class="result-box">
-          <span class="label">Stall Torque [mNm]</span>
+          <span class="label">Estimated Stall Torque [mNm]</span>
           <span class="value" id="torqueVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Torque Constant Kt [mNm/A]</span>
+          <span class="label">Estimated Kt [mNm/A]</span>
           <span class="value" id="ktVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Velocity Constant Kv [RPM/V]</span>
+          <span class="label">Estimated Kv [RPM/V]</span>
           <span class="value" id="kvVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">No-Load Speed [RPM]</span>
+          <span class="label">Ideal No-Load Speed [RPM]</span>
           <span class="value" id="rpmVal">--</span>
         </div>
 
         <!-- Row 2: Electrical & Power Output -->
         <div class="result-box">
-          <span class="label">Phase Resistance [Ω]</span>
+          <span class="label">Coil + Via Phase Resistance [Ω]</span>
           <span class="value" id="resVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Peak Stall Current [A]</span>
+          <span class="label">Active Phase Current [A]</span>
           <span class="value" id="currentVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Phase Dissipation [W]</span>
+          <span class="label">Total Copper Loss [W]</span>
           <span class="value" id="powerVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Peak Mech Power [W]</span>
+          <span class="label">Ideal Peak Mech Power [W]</span>
           <span class="value" id="pMechVal">--</span>
         </div>
 
         <!-- Row 3: Thermal & Geometry -->
         <div class="result-box">
-          <span class="label">Temp Rise &amp; Operating [°C]</span>
+          <span class="label">Est. Temp Rise &amp; Operating [°C]</span>
           <span class="value" id="tempVal">--</span>
         </div>
         <div class="result-box">
@@ -694,11 +709,11 @@
           <span class="value" id="densityVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Phase Trace Length [m]</span>
+          <span class="label">Coil-Only Phase Length [m]</span>
           <span class="value" id="lenVal">--</span>
         </div>
         <div class="result-box">
-          <span class="label">Phase Inductance [µH]</span>
+          <span class="label">Approx. Phase Inductance [µH]</span>
           <span class="value" id="inductanceVal">--</span>
         </div>
       </div>
@@ -732,6 +747,7 @@
   const magnetDiameter = $('magnetDiameter');
   const airgap = $('airgap');
   const pcbThickness = $('pcbThickness');
+  const magnetThickness = $('magnetThickness');
   const magnetGrade = $('magnetGrade');
   const rotorConfigToggle = $('rotorConfigToggle');
   const turnsPerLayer = $('turnsPerLayer');
@@ -739,11 +755,13 @@
   const maxTurnsHint = $('maxTurnsHint');
   const traceWidth = $('traceWidth');
   const traceSpacing = $('traceSpacing');
+  const edgeClearance = $('edgeClearance');
   const copperWeight = $('copperWeight');
   const viaDrill = $('viaDrill');
   const viaPad = $('viaPad');
   const dcVoltage = $('dcVoltage');
   const ambientTemp = $('ambientTemp');
+  const currentLimit = $('currentLimit');
   const layerPills = $('layerPills');
   const pillMagnets = $('pillMagnets');
   const pillPhases = $('pillPhases');
@@ -857,7 +875,7 @@
     updateUI();
   });
 
-  [motorDiameter, innerDiameter, statorCount, rotorMagnets, magnetDiameter, airgap, pcbThickness, magnetGrade, turnsPerLayer, traceWidth, traceSpacing, copperWeight, viaDrill, viaPad, dcVoltage, ambientTemp].forEach(el => {
+  [motorDiameter, innerDiameter, statorCount, rotorMagnets, magnetDiameter, airgap, pcbThickness, magnetThickness, magnetGrade, turnsPerLayer, traceWidth, traceSpacing, edgeClearance, copperWeight, viaDrill, viaPad, dcVoltage, ambientTemp, currentLimit].forEach(el => {
     el.addEventListener('input', updateUI);
     el.addEventListener('change', updateUI);
   });
@@ -1011,6 +1029,7 @@
 
     const w = Math.max(0.05, parseFloat(traceWidth.value) || 0.127);
     const s = Math.max(0.05, parseFloat(traceSpacing.value) || 0.127);
+    const edge = Math.max(0.1, parseFloat(edgeClearance.value) || 0.25);
     const vDrill = Math.max(0.15, parseFloat(viaDrill.value) || 0.25);
     const vPad = Math.max(vDrill + 0.1, parseFloat(viaPad.value) || 0.5);
 
@@ -1021,28 +1040,37 @@
     const optDin = (dOut / Math.sqrt(3)).toFixed(1);
     pitchDiamHint.textContent = `Pitch: Ø${dPitch.toFixed(1)} mm (Opt: ${optDin}mm)`;
 
-    const clearanceMargin = 1.2;
-    const rMax = rOut - clearanceMargin;
-    const rMin = rIn + clearanceMargin;
+    // rMax/rMin are trace centerline limits. Include half the trace width so
+    // the copper edge, rather than merely its centerline, honors board-edge clearance.
+    const edgeCenterlineClearance = edge + w / 2;
+    const rMax = rOut - edgeCenterlineClearance;
+    const rMin = rIn + edgeCenterlineClearance;
     const delta = w + s;
     const pitch = 2 * Math.PI / N;
-    const gapAngle = Math.max(0.04, 1.0 / rMin);
+    // Adjacent sector centerlines are one full trace pitch apart at the most
+    // restrictive (inner) radius, leaving the requested edge-to-edge spacing.
+    const gapAngle = Math.max(0.001, delta / rMin);
     const span = pitch - gapAngle;
 
     // Maximum turns calculation ensuring center clearance around via pad
     let maxTurns = 1;
     if (state.shape === 'trapezoidal') {
       const radialHalf = (rMax - rMin) / 2;
-      const tangentialHalf = rMin * (span / 2);
-      const safeRoom = Math.min(radialHalf, tangentialHalf) - (vPad / 2 + s);
-      maxTurns = Math.max(1, Math.floor(safeRoom / delta));
+      const tangentialHalf = rMid * Math.sin(span / 2);
+      const viaKeepout = vPad / 2 + s + w / 2;
+      const usableOffset = Math.min(radialHalf, tangentialHalf) - viaKeepout;
+      // Turns are indexed from offset zero, so the final legal offset adds one
+      // turn. The former calculation discarded this turn and measured angular
+      // room at rMin instead of at the via center.
+      maxTurns = Math.max(1, Math.floor((usableOffset + 1e-9) / delta) + 1);
     } else {
-      const maxRadiusCirc = Math.min((rMax - rMin) / 2, rMid * Math.sin(pitch / 2) - 1.0);
-      maxTurns = Math.max(1, Math.floor((maxRadiusCirc - (vPad / 2 + s)) / delta));
+      const adjacentCenterDistance = 2 * rMid * Math.sin(pitch / 2);
+      const maxRadiusCirc = Math.min((rMax - rMin) / 2, (adjacentCenterDistance - delta) / 2);
+      maxTurns = Math.max(1, Math.floor((maxRadiusCirc - (vPad / 2 + s + w / 2)) / delta));
     }
 
-    maxTurnsHint.textContent = `Rec: 15–19 (Max: ~${maxTurns})`;
-    const userTurns = Math.max(1, Math.min(maxTurns, parseInt(turnsPerLayer.value, 10) || 19));
+    maxTurnsHint.textContent = `Max packing: ~${maxTurns}`;
+    const userTurns = Math.max(1, Math.min(maxTurns, parseInt(turnsPerLayer.value, 10) || 27));
     const layersCount = 2; // Dedicated 2-layer design
 
     // Generate Base Coil (2 Layers with Center Via)
@@ -1059,11 +1087,14 @@
       const cosA = Math.cos(angle);
       const sinA = Math.sin(angle);
 
-      // Phase identification for 3-phase (A, B, C, A, B, C...)
+      // Phase identification for 3-phase (A, B, C, A, B, C...). Derive
+      // polarity from electrical angle so series coils add for this slot/pole
+      // combination instead of using a hard-coded six-slot pattern.
       const phaseIdx = k % 3; // 0=A, 1=B, 2=C
       const phaseName = PHASE_NAMES[phaseIdx];
-      // Alternating pole polarity for each phase: A+, B+, C+, A-, B-, C-
-      const phasePolarity = (Math.floor(k / 3) % 2 === 0) ? '+' : '−';
+      const polePairs = Math.max(1, Math.floor(nMag / 2));
+      const phaseReferenceAngle = phaseIdx * pitch;
+      const phasePolarity = Math.cos(polePairs * (angle - phaseReferenceAngle)) >= 0 ? '+' : '−';
       const label = `Phase ${String.fromCharCode(65 + phaseIdx)}${phasePolarity}`;
 
       const statorLayers = {
@@ -1134,13 +1165,13 @@
       dOut, dIn, rOut, rIn, dPitch, rMid, N, nMag, dMag,
       userTurns, maxTurns, layersCount, stators, magnets,
       singleCoilBounds, coilTotalLengthMm: baseCoil.totalLength,
-      w, s, vDrill, vPad, rMax, rMin
+      w, s, edge, vDrill, vPad, rMax, rMin
     };
   }
 
   // True 4-Sided Non-Intersecting Trapezoidal Coil Path Generator (2 Layers with Center Via)
   function generateTrapezoidCoil(rMax, rMin, pitch, turns, w, s, delta, rMid, vDrill, vPad) {
-    const gapAngle = Math.max(0.04, 1.0 / rMin);
+    const gapAngle = Math.max(0.001, delta / rMin);
     const span = pitch - gapAngle;
     const ptsL1 = [];
 
@@ -1220,8 +1251,9 @@
 
   // Circular Spiral Generator (2 Layers with Center Via)
   function generateCircularCoil(rMax, rMin, pitch, turns, w, s, delta, rMid, vDrill, vPad) {
-    const maxRadiusCirc = Math.min((rMax - rMin) / 2, rMid * Math.sin(pitch / 2) - 1.0);
-    const minRadiusCirc = vPad / 2 + s;
+    const adjacentCenterDistance = 2 * rMid * Math.sin(pitch / 2);
+    const maxRadiusCirc = Math.min((rMax - rMin) / 2, (adjacentCenterDistance - delta) / 2);
+    const minRadiusCirc = vPad / 2 + s + w / 2;
     const ptsL1 = [];
     const stepsPerTurn = 40;
     const totalSteps = turns * stepsPerTurn;
@@ -1268,6 +1300,8 @@
     const vDc = Math.max(0.01, parseFloat(dcVoltage.value) || 3.0);
     const copperUm = parseFloat(copperWeight.value) || 35;
     const amb = parseFloat(ambientTemp.value) || 25;
+    const driverCurrentLimit = Math.max(0, parseFloat(currentLimit.value) || 0);
+    const pcbThMm = Math.max(0.2, parseFloat(pcbThickness.value) || 1.0);
 
     const wMm = geo.w;
     const tMm = copperUm / 1000;
@@ -1275,56 +1309,78 @@
     const areaM2 = areaMm2 * 1e-6;
 
     const coilLenM = geo.coilTotalLengthMm / 1000;
-    // Standard 3-Phase BLDC: coils per phase connected in series
-    const numConnectedCoils = Math.max(1, Math.round(geo.N / 3));
+    // Three independent H-bridges drive the phases. Under six-step commutation
+    // two phases are active, and each receives the full DC-bus voltage.
+    // Coil counts not divisible by three cannot form a balanced winding.
+    const windingIsBalanced = geo.N % 3 === 0;
+    const numConnectedCoils = Math.max(1, Math.floor(geo.N / 3));
     const connectedLengthM = coilLenM * numConnectedCoils;
 
     const rho20 = 1.724e-8;
     const alpha = 0.00393;
-    const resCold = Math.max(1e-4, (rho20 * connectedLengthM) / areaM2);
-    const iCold = vDc / resCold;
+    const traceResistanceCold = (rho20 * connectedLengthM) / areaM2;
+    const viaPlatingM = 25e-6; // common finished-hole copper plating assumption
+    const viaBarrelAreaM2 = Math.PI * geo.vDrill * 1e-3 * viaPlatingM;
+    const viaResistancePerCoil = rho20 * pcbThMm * 1e-3 / Math.max(1e-12, viaBarrelAreaM2);
+    const resCold = Math.max(1e-4, traceResistanceCold + numConnectedCoils * viaResistancePerCoil);
+    const iColdUnlimited = vDc / resCold;
+    const iCold = driverCurrentLimit > 0 ? Math.min(iColdUnlimited, driverCurrentLimit) : iColdUnlimited;
 
-    // Iterative thermal equilibrium
-    // FR4 with continuous copper layers conducts heat across the entire stator disk.
-    // In rotating BLDC commutation, heat distributes over all coils across the full double-sided PCB surface.
+    // First-order natural-convection model. A dual rotor restricts airflow.
+    // This is intentionally presented as an estimate, not a safety rating.
     const statorSurfaceM2 = 2 * Math.PI * (Math.pow(geo.rOut, 2) - Math.pow(geo.rIn, 2)) * 1e-6;
-    const heatTransferH = 18; // W/(m^2*K) natural convection air cooling
-    const effectiveThermalArea = statorSurfaceM2;
+    const heatTransferH = state.rotorConfig === 'dual' ? 8 : 12; // W/(m^2*K)
+    const thermalResistance = 1 / Math.max(1e-6, heatTransferH * statorSurfaceM2);
 
-    let opTemp = amb;
-    let resistance = resCold;
-    let current = iCold;
-    let power = vDc * iCold;
-    let tempRise = 0;
+    const operatingPointAtRise = rise => {
+      const phaseR = resCold * Math.max(0.05, 1 + alpha * (amb + rise - 20));
+      const voltageLimitedCurrent = vDc / phaseR;
+      const lineCurrent = driverCurrentLimit > 0
+        ? Math.min(voltageLimitedCurrent, driverCurrentLimit)
+        : voltageLimitedCurrent;
+      return { phaseR, lineCurrent, copperLoss: 2 * lineCurrent * lineCurrent * phaseR };
+    };
 
-    for (let iter = 0; iter < 8; iter++) {
-      const rhoT = rho20 * (1 + alpha * (opTemp - 20));
-      resistance = Math.max(1e-4, (rhoT * connectedLengthM) / areaM2);
-      current = vDc / resistance;
-      power = Math.pow(current, 2) * resistance;
-      tempRise = power / Math.max(1e-4, (heatTransferH * effectiveThermalArea));
-      opTemp = amb + tempRise;
+    // Robustly solve dT = total winding copper loss(T) * thermal resistance.
+    let lo = 0;
+    let hi = 2000;
+    for (let iter = 0; iter < 80; iter++) {
+      const mid = (lo + hi) / 2;
+      if (operatingPointAtRise(mid).copperLoss * thermalResistance > mid) lo = mid;
+      else hi = mid;
     }
+    const tempRise = (lo + hi) / 2;
+    const opTemp = amb + tempRise;
+    const operatingPoint = operatingPointAtRise(tempRise);
+    const resistance = operatingPoint.phaseR;
+    const current = operatingPoint.lineCurrent;
+    const power = operatingPoint.copperLoss;
+    const drivePathResistance = resistance;
 
     const currentDensity = current / areaMm2; // A/mm^2
     const totalTurns = geo.userTurns * geo.layersCount;
 
-    // Planar spiral inductance: Mohan et al. (IEEE JSSC 1999) Modified Wheeler formulation
-    const dAvgM = (geo.rMax + geo.rMin) * 1e-3;
-    const rho = (geo.rMax - geo.rMin) / (geo.rMax + geo.rMin);
+    // Modified-Wheeler approximation. Circular coils use their actual local
+    // radii rather than the unrelated stator annulus radii.
+    const circularCenterDistance = 2 * geo.rMid * Math.sin(Math.PI / geo.N);
+    const circularOuterR = Math.min((geo.rMax - geo.rMin) / 2, (circularCenterDistance - (geo.w + geo.s)) / 2);
+    const circularInnerR = geo.vPad / 2 + geo.s + geo.w / 2;
+    const inductanceOuterR = state.shape === 'circular' ? circularOuterR : geo.rMax;
+    const inductanceInnerR = state.shape === 'circular' ? circularInnerR : geo.rMin;
+    const dAvgM = (inductanceOuterR + inductanceInnerR) * 1e-3;
+    const rho = Math.max(1e-6, (inductanceOuterR - inductanceInnerR) / (inductanceOuterR + inductanceInnerR));
     const mu0 = 4 * Math.PI * 1e-7;
     const singleCoilL = (mu0 * Math.pow(totalTurns, 2) * dAvgM / 2) * (Math.log(2.46 / rho) + 0.20 * Math.pow(rho, 2)) * 1e6;
     const inductanceMicroH = singleCoilL * numConnectedCoils;
 
     // Airgap, Magnetic Circuit & Torque Estimation
     const airgapMm = Math.max(0.1, parseFloat(airgap.value) || 1.0);
-    const pcbThMm = Math.max(0.2, parseFloat(pcbThickness.value) || 1.0);
     const magGrd = magnetGrade.value || 'N52';
     const rotorCfg = state.rotorConfig || 'dual';
 
     const brMap = { N52: 1.44, N50: 1.40, N48: 1.38, N42: 1.30, N35: 1.18 };
     const br = brMap[magGrd] || 1.44;
-    const hmDiscMm = 2.5; // Standard disc magnet thickness in AFPM rotors (2.5mm)
+    const hmDiscMm = Math.max(0.5, parseFloat(magnetThickness.value) || 2.5);
 
     let bPeak = 0;
     let bAvg = 0;
@@ -1341,15 +1397,47 @@
       bAvg = (2.0 / Math.PI) * bPeak;
     }
 
-    // Electromechanical Parameters
+    // Electromechanical estimate. Magnet diameter now determines angular and
+    // radial coverage. Winding factor is derived from the generated coil
+    // electrical angles and polarities instead of being hard-coded.
     const p = Math.max(1, Math.floor(geo.nMag / 2)); // Pole pairs
-    const kw = 0.866; // Fundamental winding factor (6 coils / 8 poles concentrated)
     const lRadialM = (geo.rMax - geo.rMin) * 1e-3;
     const rMidM = (geo.rMax + geo.rMin) / 2 * 1e-3;
-    const nPhaseTurns = (Math.max(1, Math.round(geo.N / 3))) * totalTurns;
+    const phasePhasors = [0, 1, 2].map(phaseIdx => {
+      let re = 0, im = 0, count = 0;
+      geo.stators.filter(stator => stator.phaseIdx === phaseIdx).forEach(stator => {
+        const sign = stator.phasePolarity === '+' ? 1 : -1;
+        re += sign * Math.cos(p * stator.angle);
+        im += sign * Math.sin(p * stator.angle);
+        count++;
+      });
+      return {
+        magnitude: count ? Math.hypot(re, im) / count : 0,
+        angle: Math.atan2(im, re)
+      };
+    });
+    const kw = phasePhasors.reduce((sum, phase) => sum + phase.magnitude, 0) / 3;
+    const phaseAngles = phasePhasors
+      .map(phase => (phase.angle + 2 * Math.PI) % (2 * Math.PI))
+      .sort((a, b) => a - b);
+    const phaseGaps = phaseAngles.map((angle, index) => {
+      const next = phaseAngles[(index + 1) % phaseAngles.length] + (index === phaseAngles.length - 1 ? 2 * Math.PI : 0);
+      return next - angle;
+    });
+    const phaseSeparationErrorDeg = Math.max(...phaseGaps.map(gap => Math.abs(gap - 2 * Math.PI / 3))) * 180 / Math.PI;
+    const windingIsCompatible = windingIsBalanced && geo.nMag % 2 === 0 && kw >= 0.75 && phaseSeparationErrorDeg <= 15;
+    const poleArcCoverage = Math.min(1, (geo.nMag * geo.dMag) / (2 * Math.PI * geo.rMid));
+    const radialCoverage = Math.min(1, geo.dMag / Math.max(1e-6, geo.rMax - geo.rMin));
+    const bEffective = bPeak * poleArcCoverage * radialCoverage;
+    const activeCoils = 2 * numConnectedCoils;
+    const shapeFactor = state.shape === 'circular' ? (2 / Math.PI) : 1;
 
-    // Torque Constant Kt [Nm/A] and [mNm/A]
-    const ktNmPerA = 2.0 * p * kw * nPhaseTurns * bAvg * lRadialM * rMidM;
+    // Lorentz-force estimate: two active sides per turn over both conducting
+    // phases. Pole count affects winding phase and field coverage, not an
+    // additional force multiplier.
+    const ktNmPerA = windingIsCompatible
+      ? activeCoils * 2 * totalTurns * bEffective * lRadialM * rMidM * kw * shapeFactor
+      : 0;
     const ktMNmPerA = ktNmPerA * 1000;
 
     // Stall Torque at thermal operating equilibrium
@@ -1358,18 +1446,26 @@
     const stallTorqueGCm = stallTorqueNm * 10197.16;
 
     // Velocity Constant Kv [RPM/V]
-    const kvRpmPerV = ktNmPerA > 0 ? (9.5493 / ktNmPerA) : 0;
+    // Kt above includes both active phases. Each H-bridge sees one phase
+    // back-EMF, so Ke_phase = Kt/2 in SI units.
+    const kvRpmPerV = ktNmPerA > 0 ? (2 * 9.5493 / ktNmPerA) : 0;
 
     // No-load RPM at selected DC voltage
     const noLoadRpm = kvRpmPerV * vDc;
 
-    // Peak Mechanical Power [W] (at 50% stall torque and 50% no-load speed)
-    const pMechMax = 0.25 * stallTorqueNm * (noLoadRpm * 2 * Math.PI / 60.0);
+    // Ideal torque-speed envelope. With a low current limit, peak power moves
+    // to the point where back-EMF first releases the current clamp.
+    const unlimitedStallCurrent = vDc / resistance;
+    const pMechMax = current >= unlimitedStallCurrent / 2
+      ? 0.5 * vDc * unlimitedStallCurrent
+      : 2 * current * Math.max(0, vDc - current * resistance);
 
     return {
       resCold, iCold, resistance, current, power, tempRise, opTemp, currentDensity,
-      totalTurns, connectedLengthM, inductanceMicroH, vDc, numConnectedCoils,
-      airgapMm, pcbThMm, magGrd, rotorCfg, bAvg, bPeak,
+      totalTurns, connectedLengthM, inductanceMicroH, vDc, numConnectedCoils, drivePathResistance,
+      airgapMm, pcbThMm, magGrd, rotorCfg, bAvg, bPeak, bEffective, poleArcCoverage,
+      kw, windingIsBalanced, windingIsCompatible, phaseSeparationErrorDeg,
+      driverCurrentLimit, thermalResistance, viaResistancePerCoil,
       ktNmPerA, ktMNmPerA, stallTorqueNm, stallTorqueMNm, stallTorqueGCm,
       kvRpmPerV, noLoadRpm, pMechMax
     };
@@ -1382,7 +1478,7 @@
 
     // Update Model Titles
     modelTitle.textContent = `Ø${state.geometry.dOut} mm PCB Motor · ${state.geometry.N} Stators · ${state.geometry.nMag} Magnets · 2 Layers`;
-    modelMeta.textContent = `Dpitch Ø${state.geometry.dPitch.toFixed(1)} mm · Center Via · ${state.geometry.userTurns} turns/layer (${state.geometry.userTurns * 2} turns/coil) · Trace ${state.geometry.w} mm / Space ${state.geometry.s} mm`;
+    modelMeta.textContent = `Dpitch Ø${state.geometry.dPitch.toFixed(1)} mm · Independent phase H-bridges · ${state.geometry.userTurns} turns/layer (${state.geometry.userTurns * 2} turns/coil) · Trace ${state.geometry.w} mm / Space ${state.geometry.s} mm`;
 
     // Numerical Displays: Electromechanical & Torque
     torqueVal.innerHTML = `${ele.stallTorqueMNm.toFixed(2)}<span class="unit">mNm</span> <span style="font-size:0.62rem; color:var(--muted); font-weight:normal;">(${ele.stallTorqueGCm.toFixed(0)} g·cm)</span>`;
@@ -1411,20 +1507,32 @@
     const vLabel = (ele.vDc % 1 === 0 ? ele.vDc.toFixed(0) : ele.vDc.toFixed(1)) + 'V';
     let badgeClass = 'badge-ok';
     let icon = '✓';
-    let msg = `Safe ${vLabel} DC operation · Torque: ${ele.stallTorqueMNm.toFixed(1)} mNm`;
+    let msg = `Estimated continuous operation at ${vLabel} · two active phase H-bridges · validate thermally`;
 
-    if (ele.opTemp > 105 || ele.currentDensity > 70) {
+    if (!ele.windingIsBalanced) {
       badgeClass = 'badge-danger';
       icon = '⚠';
-      msg = `Overheat warning at ${vLabel} (${ele.opTemp.toFixed(0)}°C): Exceeds continuous dissipation`;
-    } else if (ele.opTemp > 65 || ele.power > 3.0) {
+      msg = 'Invalid 3-phase winding: stator coil count must be divisible by 3';
+    } else if (state.geometry.nMag % 2 !== 0) {
+      badgeClass = 'badge-danger';
+      icon = '⚠';
+      msg = 'Invalid rotor: alternating N/S poles require an even magnet count';
+    } else if (!ele.windingIsCompatible) {
+      badgeClass = 'badge-danger';
+      icon = '⚠';
+      msg = `Incompatible slot/pole winding: kw ${ele.kw.toFixed(2)}, phase error ${ele.phaseSeparationErrorDeg.toFixed(0)}°`;
+    } else if (ele.opTemp > 120 || ele.currentDensity > 35) {
+      badgeClass = 'badge-danger';
+      icon = '⚠';
+      msg = `Electrical/thermal limit exceeded at ${vLabel}: ${ele.opTemp.toFixed(0)}°C, ${ele.currentDensity.toFixed(1)} A/mm²`;
+    } else if (ele.opTemp > 80 || ele.currentDensity > 15) {
       badgeClass = 'badge-warn';
       icon = '▲';
-      msg = `Elevated dissipation at ${vLabel} (${ele.power.toFixed(1)}W): Ensure airflow or PWM limit`;
+      msg = `Elevated estimate at ${vLabel}: ${ele.power.toFixed(1)} W copper loss; validate cooling/current limit`;
     }
 
     statusBadgeContainer.innerHTML = `<div class="status-badge ${badgeClass}"><span>${icon}</span> <span>${msg}</span></div>`;
-    statorSummaryText.textContent = `Ø${state.geometry.dOut}mm Stator · Stall Torque: ${ele.stallTorqueMNm.toFixed(1)}mNm (${ele.stallTorqueGCm.toFixed(0)}g·cm) · Kt: ${ele.ktMNmPerA.toFixed(1)}mNm/A · Kv: ${ele.kvRpmPerV.toFixed(0)}RPM/V @ ${vLabel}`;
+    statorSummaryText.textContent = `Ø${state.geometry.dOut}mm · pole coverage ${ele.poleArcCoverage.toFixed(2)} · kw ${ele.kw.toFixed(2)} · θth ${ele.thermalResistance.toFixed(1)}°C/W @ ${vLabel}`;
 
     render();
   }
@@ -1630,7 +1738,7 @@
   function exportJsonConfig() {
     const config = {
       app: 'PCB Motor Coil Designer',
-      version: '1.0',
+      version: '1.1',
       timestamp: new Date().toISOString(),
       settings: {
         motorDiameter: parseFloat(motorDiameter.value) || 50,
@@ -1639,18 +1747,21 @@
         shape: state.shape,
         rotorMagnets: parseInt(rotorMagnets.value, 10) || 8,
         magnetDiameter: parseFloat(magnetDiameter.value) || 10,
+        magnetThickness: parseFloat(magnetThickness.value) || 2.5,
         airgap: parseFloat(airgap.value) || 1.0,
         pcbThickness: parseFloat(pcbThickness.value) || 1.0,
         magnetGrade: magnetGrade.value || 'N52',
         rotorConfig: state.rotorConfig || 'dual',
-        turnsPerLayer: parseInt(turnsPerLayer.value, 10) || 19,
+        turnsPerLayer: parseInt(turnsPerLayer.value, 10) || 27,
         traceWidth: parseFloat(traceWidth.value) || 0.127,
         traceSpacing: parseFloat(traceSpacing.value) || 0.127,
+        edgeClearance: parseFloat(edgeClearance.value) || 0.25,
         copperWeight: parseFloat(copperWeight.value) || 35,
         viaDrill: parseFloat(viaDrill.value) || 0.25,
         viaPad: parseFloat(viaPad.value) || 0.5,
         dcVoltage: parseFloat(dcVoltage.value) || 3,
-        ambientTemp: parseFloat(ambientTemp.value) || 25
+        ambientTemp: parseFloat(ambientTemp.value) || 25,
+        currentLimit: parseFloat(currentLimit.value) || 0
       }
     };
 
@@ -1687,17 +1798,20 @@
     if (s.statorCount != null) statorCount.value = s.statorCount;
     if (s.rotorMagnets != null) rotorMagnets.value = s.rotorMagnets;
     if (s.magnetDiameter != null) magnetDiameter.value = s.magnetDiameter;
+    if (s.magnetThickness != null) magnetThickness.value = s.magnetThickness;
     if (s.airgap != null) airgap.value = s.airgap;
     if (s.pcbThickness != null) pcbThickness.value = s.pcbThickness;
     if (s.magnetGrade != null) magnetGrade.value = s.magnetGrade;
     if (s.turnsPerLayer != null) turnsPerLayer.value = s.turnsPerLayer;
     if (s.traceWidth != null) traceWidth.value = s.traceWidth;
     if (s.traceSpacing != null) traceSpacing.value = s.traceSpacing;
+    if (s.edgeClearance != null) edgeClearance.value = s.edgeClearance;
     if (s.copperWeight != null) copperWeight.value = s.copperWeight;
     if (s.viaDrill != null) viaDrill.value = s.viaDrill;
     if (s.viaPad != null) viaPad.value = s.viaPad;
     if (s.dcVoltage != null) dcVoltage.value = s.dcVoltage;
     if (s.ambientTemp != null) ambientTemp.value = s.ambientTemp;
+    if (s.currentLimit != null) currentLimit.value = s.currentLimit;
 
     if (s.shape && (s.shape === 'trapezoidal' || s.shape === 'circular')) {
       state.shape = s.shape;
