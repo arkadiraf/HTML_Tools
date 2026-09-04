@@ -34,3 +34,10 @@ A collection of high-performance, client-side, zero-install web tools designed f
 ### 6. [PCBTraceCalc.html](PCBTraceCalc.html)
 **PCB Trace Resistance & Thermal Calculator (One-Pager)**
 - IPC-2152 and IPC-2221 temperature rise, trace resistance, voltage drop, and power dissipation with dynamic cross-section preview in a responsive one-pager layout.
+
+### 7. [LaserImagePrep.html](LaserImagePrep.html)
+**Laser Engraving Grayscale & Dither Tool (One-Pager)**
+- Client-side image preparation for laser engraving with drag-and-drop, interactive cropping, 90° rotation, and horizontal mirroring.
+- Full tuning pipeline with RGB/HSV adjustments, edge enhancement (Sobel, Laplace, DoG), histogram levels, and laser dithering (Atkinson, Floyd-Steinberg, Stucki, Bayer, Threshold).
+- 1-click material presets, interactive split comparison view, JSON configuration save/load, and full-resolution JPG/PNG export.
+
