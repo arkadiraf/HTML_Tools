@@ -41,3 +41,8 @@ A collection of high-performance, client-side, zero-install web tools designed f
 - Full tuning pipeline with RGB/HSV adjustments, edge enhancement (Sobel, Laplace, DoG), histogram levels, and laser dithering (Atkinson, Floyd-Steinberg, Stucki, Bayer, Threshold).
 - 1-click material presets, interactive split comparison view, JSON configuration save/load, and full-resolution JPG/PNG export.
 
+### 8. [GerberPreview.html](GerberPreview.html)
+**Gerber & Excellon PCB Layer Viewer**
+- Open individual Gerber and Excellon drill files, multiple files at once, or a complete PCB job packaged as a ZIP archive.
+- Toggle and inspect color-coded copper, mask, silkscreen, paste, outline, and drill layers entirely in the browser.
+- View board dimensions, cursor coordinates, layer summaries, and rendered primitive counts with pan, zoom, and fit-to-board controls.

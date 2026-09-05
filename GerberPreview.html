@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerber Viewer — PCB Layer Preview</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --border:#334155; --primary:#38bdf8; --text:#f8fafc; --muted:#94a3b8; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:clamp(.75rem,2vh,1.5rem); height:100vh; height:100dvh; overflow:hidden; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+    .container { width:100%; max-width:1600px; height:100%; min-height:0; display:flex; flex-direction:column; }
+    header { flex:0 0 auto; text-align:center; margin-bottom:clamp(.5rem,1.5vh,1rem); }
+    h1 { margin:0 0 .35rem; font-size:clamp(1.65rem,3.5vh,2.2rem); letter-spacing:-.5px; }
+    h1 span { color:var(--primary); }
+    .subtitle,#status,.summary,.coordinates,.empty { color:var(--muted); }
+    .subtitle { margin:0; }
+    .upload { flex:0 0 auto; border:2px dashed var(--border); background:var(--card); border-radius:12px; padding:clamp(.75rem,2vh,1.25rem); text-align:center; cursor:pointer; transition:.2s; }
+    .upload:hover,.upload.dragover { border-color:var(--primary); background:#24344d; }
+    .upload input { display:none; }
+    .upload p { margin:0; }
+    #status { flex:0 0 auto; min-height:1.25rem; margin:.5rem 0; text-align:center; font-size:.95rem; }
+    #status.error { color:#ef4444; }
+    .card { flex:1 1 auto; min-height:0; padding:clamp(.65rem,1.5vh,1rem); background:var(--card); border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column; }
+    .card-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.6rem; }
+    .file-info { min-width:0; }
+    .filename { color:var(--primary); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .summary { margin-top:.25rem; font-size:.82rem; }
+    .buttons { display:flex; gap:.5rem; flex-shrink:0; }
+    .layer-legend-wrap { flex:0 0 auto; margin-bottom:.6rem; }
+    .layer-legend-wrap.hidden { display:none; }
+    .legend-actions { display:flex; gap:.4rem; margin-bottom:.35rem; }
+    .legend-actions button { background:transparent; border:1px solid var(--border); color:var(--muted); padding:.15rem .55rem; border-radius:9999px; font-size:.7rem; font-weight:600; }
+    .legend-actions button:hover { border-color:var(--primary); color:var(--text); background:transparent; }
+    .layer-legend { display:flex; flex-wrap:wrap; gap:.35rem; }
+    .layer-chip { display:inline-flex; align-items:center; gap:.35rem; background:#0b1120; border:1px solid var(--border); border-radius:9999px; padding:.2rem .55rem; font-size:.72rem; font-weight:600; cursor:pointer; user-select:none; transition:border-color .2s, opacity .2s; }
+    .layer-chip:hover { border-color:var(--primary); }
+    .layer-chip.inactive { opacity:.4; }
+    .layer-chip .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; border:1px solid rgba(255,255,255,.25); }
+    .layer-chip .count { color:var(--muted); font-weight:normal; }
+    button { border:0; border-radius:6px; padding:.55rem .85rem; background:#0284c7; color:white; font-family:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
+    button:hover:not(:disabled) { background:var(--primary); color:var(--bg); }
+    button:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
+    .canvas-wrap { position:relative; width:100%; height:auto; min-height:0; flex:1 1 auto; overflow:hidden; border:1px solid var(--border); border-radius:6px; background:#020617; }
+    canvas { display:block; width:100%; height:100%; cursor:grab; }
+    canvas.dragging { cursor:grabbing; }
+    .empty { position:absolute; inset:0; display:grid; place-items:center; font-style:italic; pointer-events:none; text-align:center; padding:1rem; }
+    .empty.hidden { display:none; }
+    .coordinates { position:absolute; right:.5rem; bottom:.5rem; z-index:2; margin:0; padding:.2rem .55rem; background:rgba(2,6,23,.75); border:1px solid var(--border); border-radius:4px; pointer-events:none; font: .74rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .workspace { flex:1 1 auto; min-height:0; display:flex; flex-direction:row; gap:0; }
+    .pane { flex:1 1 50%; display:flex; flex-direction:column; min-width:0; min-height:0; }
+    .pane-inspector { padding-right:.7rem; }
+    .pane-preview { border-left:1px solid var(--border); padding-left:.7rem; }
+    .pane-head { flex:0 0 auto; min-height:1.9rem; display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.5rem; flex-wrap:wrap; }
+    .pane-title { font-weight:700; font-size:.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .pane-head-controls { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+    .side-toggle { display:flex; gap:2px; background:#0b1120; border:1px solid var(--border); border-radius:8px; padding:2px; flex-shrink:0; }
+    .side-toggle button { background:transparent; color:var(--muted); padding:.3rem .8rem; border-radius:6px; font-size:.78rem; font-weight:600; }
+    .side-toggle button:hover:not(.active) { background:transparent; color:var(--text); }
+    .side-toggle button.active { background:#0284c7; color:#fff; }
+    .color-swatches { display:flex; align-items:center; gap:.3rem; flex-shrink:0; }
+    .color-swatch { width:16px; height:16px; padding:0; border-radius:50%; border:2px solid var(--border); cursor:pointer; }
+    .color-swatch:hover { border-color:var(--muted); }
+    .color-swatch.active { border-color:var(--primary); box-shadow:0 0 0 2px rgba(56,189,248,.35); }
+    .pane-preview .canvas-wrap { background:#081018; }
+    @media(max-width:900px) { .workspace{flex-direction:column} .pane-inspector{padding-right:0} .pane-preview{border-left:0;border-top:1px solid var(--border);padding-left:0;padding-top:.75rem} .pane .canvas-wrap{height:38vh;min-height:240px;flex:none} }
+    @media(max-width:700px) { body{height:auto;min-height:100dvh;overflow:auto;padding:1rem}.container{height:auto}.card-head{align-items:stretch;flex-direction:column}.buttons button{flex:1} }
+    @media(max-height:650px) and (min-width:901px) { .subtitle{display:none} header{margin-bottom:.4rem}.upload{padding:.6rem}.card-head{margin-bottom:.4rem}.coordinates{margin-top:.3rem} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header><h1>Gerber<span>/Excellon</span> Viewer</h1><p class="subtitle">Open a Gerber &amp; drill job (or a ZIP) and toggle layers to inspect your PCB</p></header>
+    <div class="upload" id="dropZone"><p><strong>Click to browse</strong> or drag &amp; drop Gerber/drill files, or a <code>.zip</code> of a job</p><input type="file" id="fileInput" multiple accept=".gbr,.ger,.gtl,.gbl,.gts,.gbs,.gto,.gbo,.gtp,.gbp,.gko,.gml,.gm1,.g1,.g2,.g3,.g4,.drl,.xln,.exc,.txt,.zip"></div>
+    <div id="status">No files loaded.</div>
+    <section class="card">
+      <div class="card-head">
+        <div class="file-info"><div class="filename" id="fileName">Gerber preview</div><div class="summary" id="fileSummary">Board size and layer count will appear here.</div></div>
+        <div class="buttons"><button id="zoomOut" disabled>−</button><button id="fit" disabled>Fit board</button><button id="zoomIn" disabled>+</button></div>
+      </div>
+      <div class="layer-legend-wrap hidden" id="layerLegendWrap">
+        <div class="legend-actions"><button id="showAll">Show all</button><button id="hideAll">Hide all</button></div>
+        <div class="layer-legend" id="layerLegend"></div>
+      </div>
+      <div class="workspace">
+        <div class="pane pane-inspector">
+          <div class="pane-head"><span class="pane-title">Layer Inspector</span></div>
+          <div class="canvas-wrap" id="canvasWrap"><canvas id="canvas"></canvas><div class="empty" id="empty">Awaiting Gerber files…</div><div class="coordinates" id="coordinates">X: — &nbsp; Y: —</div></div>
+        </div>
+        <div class="pane pane-preview">
+          <div class="pane-head">
+            <span class="pane-title">Board Preview</span>
+            <div class="pane-head-controls">
+              <div class="color-swatches" id="colorSwatches">
+                <button type="button" class="color-swatch active" data-color="green" style="background:#0f8a4a" title="Green (default)" aria-label="Green"></button>
+                <button type="button" class="color-swatch" data-color="red" style="background:#b91c1c" title="Red" aria-label="Red"></button>
+                <button type="button" class="color-swatch" data-color="blue" style="background:#1d4ed8" title="Blue" aria-label="Blue"></button>
+                <button type="button" class="color-swatch" data-color="black" style="background:#242427" title="Black" aria-label="Black"></button>
+                <button type="button" class="color-swatch" data-color="yellow" style="background:#d4b106" title="Yellow" aria-label="Yellow"></button>
+                <button type="button" class="color-swatch" data-color="white" style="background:#e8eaed" title="White" aria-label="White"></button>
+                <button type="button" class="color-swatch" data-color="purple" style="background:#7e22ce" title="Purple" aria-label="Purple"></button>
+              </div>
+              <div class="side-toggle">
+                <button id="sideTop" class="active" type="button">Top</button>
+                <button id="sideBottom" type="button">Bottom</button>
+              </div>
+            </div>
+          </div>
+          <div class="canvas-wrap" id="previewWrap"><canvas id="previewCanvas"></canvas><div class="empty" id="previewEmpty">No board loaded</div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+  (() => {
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const dropZone=$('dropZone'), fileInput=$('fileInput'), status=$('status'), fileName=$('fileName'), fileSummary=$('fileSummary');
+    const wrap=$('canvasWrap'), canvas=$('canvas'), ctx=canvas.getContext('2d'), empty=$('empty'), coordinates=$('coordinates');
+    const legendWrap=$('layerLegendWrap'), layerLegend=$('layerLegend'), showAllBtn=$('showAll'), hideAllBtn=$('hideAll');
+    const fitBtn=$('fit'), zoomIn=$('zoomIn'), zoomOut=$('zoomOut');
+    const maskCanvas=document.createElement('canvas'), maskCtx=maskCanvas.getContext('2d');
+    const previewWrap=$('previewWrap'), previewCanvas=$('previewCanvas'), previewCtx=previewCanvas.getContext('2d'), previewEmpty=$('previewEmpty');
+    const sideTopBtn=$('sideTop'), sideBottomBtn=$('sideBottom');
+    const previewMaskCanvas=document.createElement('canvas'), previewMaskCtx=previewMaskCanvas.getContext('2d');
+    const colorSwatches=[...document.querySelectorAll('#colorSwatches .color-swatch')];
+
+    const BOARD_COLORS={
+      green:  {mask:'#0f8a4a', maskBottom:'#0b6b3a', substrate:'#123524', silk:'#f5f5f5'},
+      red:    {mask:'#b91c1c', maskBottom:'#8f1616', substrate:'#3a0f0f', silk:'#f5f5f5'},
+      blue:   {mask:'#1d4ed8', maskBottom:'#1638a8', substrate:'#0f1a3a', silk:'#f5f5f5'},
+      black:  {mask:'#242427', maskBottom:'#18181a', substrate:'#0a0a0b', silk:'#f5f5f5'},
+      yellow: {mask:'#d4b106', maskBottom:'#a88b04', substrate:'#3a3110', silk:'#1a1a1a'},
+      white:  {mask:'#e8eaed', maskBottom:'#c7cad0', substrate:'#26262a', silk:'#1a1a1a'},
+      purple: {mask:'#7e22ce', maskBottom:'#5f1aa0', substrate:'#20103a', silk:'#f5f5f5'},
+    };
+
+    const KIND_STYLE={
+      'copper-top':   {color:'#ef4444', alpha:.90, label:'Top Copper'},
+      'copper-bottom':{color:'#3b82f6', alpha:.90, label:'Bottom Copper'},
+      'copper-inner': {color:'#e0932f', alpha:.55, label:'Inner Copper'},
+      'mask-top':     {color:'#22c55e', alpha:.55, label:'Top Soldermask'},
+      'mask-bottom':  {color:'#22c55e', alpha:.55, label:'Bottom Soldermask'},
+      'silk-top':     {color:'#ffffff', alpha:.90, label:'Top Silkscreen'},
+      'silk-bottom':  {color:'#d8d8d8', alpha:.90, label:'Bottom Silkscreen'},
+      'paste-top':    {color:'#c7ccd1', alpha:.85, label:'Top Paste'},
+      'paste-bottom': {color:'#9aa0a6', alpha:.85, label:'Bottom Paste'},
+      'outline':      {color:'#eab308', alpha:1,   label:'Board Outline'},
+      'drill':        {color:'#ffffff', alpha:1,   label:'Drill'},
+      'unknown':      {color:'#38bdf8', alpha:.8,  label:'Unknown'},
+    };
+    const ZORDER={'silk-bottom':1,'paste-bottom':2,'mask-bottom':3,'copper-bottom':4,'copper-inner':5,'copper-top':6,'mask-top':7,'paste-top':8,'silk-top':9,'unknown':10,'outline':11,'drill':12};
+
+    const state={layers:[],failed:[],bounds:null,boardOuterPath:null,boardCutoutPaths:[],boardCutoutCount:0,zoom:1,panX:0,panY:0,drag:false,dragX:0,dragY:0,previewSide:'top',boardColor:'green'};
+
+    dropZone.onclick=()=>fileInput.click();
+    fileInput.onchange=e=>e.target.files.length&&loadFiles(e.target.files);
+    dropZone.ondragover=e=>{e.preventDefault();dropZone.classList.add('dragover')};
+    dropZone.ondragleave=()=>dropZone.classList.remove('dragover');
+    dropZone.ondrop=e=>{e.preventDefault();dropZone.classList.remove('dragover');e.dataTransfer.files.length&&loadFiles(e.dataTransfer.files)};
+    showAllBtn.onclick=()=>toggleAll(true);
+    hideAllBtn.onclick=()=>toggleAll(false);
+    sideTopBtn.onclick=()=>setPreviewSide('top');
+    sideBottomBtn.onclick=()=>setPreviewSide('bottom');
+    function setPreviewSide(side){ state.previewSide=side; sideTopBtn.classList.toggle('active',side==='top'); sideBottomBtn.classList.toggle('active',side==='bottom'); renderPreview(); }
+    colorSwatches.forEach(btn=>{ btn.onclick=()=>setBoardColor(btn.dataset.color); });
+    function setBoardColor(key){ state.boardColor=key; colorSwatches.forEach(b=>b.classList.toggle('active',b.dataset.color===key)); renderPreview(); }
+
+    function setStatus(message,error=false){status.textContent=message;status.classList.toggle('error',error)}
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+    function fmt(value,places){return Number(value).toLocaleString(undefined,{maximumFractionDigits:places})}
+    function num(value,fallback){const n=Number(value);return Number.isFinite(n)?n:fallback}
+
+    // ---------- File loading ----------
+
+    async function loadFiles(fileList){
+      const files=[...fileList]; if(!files.length) return;
+      setStatus(`Reading ${files.length} file${files.length>1?'s':''}…`);
+      try{
+        const collected=[];
+        for(const file of files){
+          if(/\.zip$/i.test(file.name)){
+            if(!window.JSZip) throw Error('ZIP support failed to load (JSZip unavailable).');
+            const buf=await file.arrayBuffer();
+            const zip=await JSZip.loadAsync(buf);
+            for(const path of Object.keys(zip.files)){
+              const entry=zip.files[path];
+              if(entry.dir) continue;
+              if(/__MACOSX|\.DS_Store$/i.test(path)) continue;
+              if(/\.(png|jpe?g|gif|bmp|pdf|zip|gbrjob|json|ipc-2581|xml)$/i.test(path)) continue;
+              collected.push({name:path.split('/').pop(),text:await entry.async('string')});
+            }
+          } else {
+            collected.push({name:file.name,text:await file.text()});
+          }
+        }
+        if(!collected.length) throw Error('No readable Gerber/Excellon files were found.');
+        state.layers=[]; state.failed=[];
+        collected.forEach(f=>{ if(f.text.trim()) processFile(f.name,f.text) });
+        if(!state.layers.length) throw Error('None of the files could be parsed as Gerber or Excellon data.');
+        state.bounds=getOverallBounds();
+        computeBoardGeometry();
+        buildLegend();
+        updateSummary();
+        empty.classList.add('hidden');
+        [fitBtn,zoomIn,zoomOut].forEach(b=>b.disabled=false);
+        fitDrawing();
+        renderPreview();
+        const drillCount=state.layers.filter(l=>l.format==='Excellon').length;
+        const rs274xCount=state.layers.filter(l=>l.rs274x===true).length;
+        const badGerber=state.layers.filter(l=>l.rs274x===false);
+        let msg=`Loaded ${state.layers.length} layer${state.layers.length>1?'s':''} — ${rs274xCount} RS-274X Gerber, ${drillCount} Excellon drill.`;
+        if(badGerber.length) msg+=` ⚠ Not valid RS-274X (missing %FS/%AD): ${badGerber.map(l=>l.name).join(', ')}.`;
+        if(state.failed.length) msg+=` Skipped ${state.failed.length}: ${state.failed.map(f=>f.name).join(', ')}.`;
+        setStatus(msg, badGerber.length>0);
+      }catch(error){ console.error(error); setStatus(`Unable to preview: ${error.message}`,true) }
+    }
+
+    function processFile(name,text){
+      try{
+        const type=sniffFileType(name,text);
+        const parsed = type==='drill' ? parseExcellonText(text) : parseGerberText(text);
+        parsed.graphics.forEach(buildPath2D);
+        // Content sniffing (type) is authoritative over filename guessing: a drill file
+        // named e.g. "board.txt" must render/stack as a drill layer, not fall through
+        // to the filename-based Gerber-layer heuristics below.
+        const kind = type==='drill' ? 'drill' : detectLayerKind(name, parsed.fileFunction);
+        const style=KIND_STYLE[kind];
+        const bounds=getGraphicsBounds(parsed.graphics);
+        const format = type==='drill' ? 'Excellon' : (parsed.rs274x ? 'RS-274X' : 'Gerber (no format spec/apertures found)');
+        state.layers.push({
+          id:name+'#'+state.layers.length, name, kind, color:style.color, alpha:style.alpha, label:style.label,
+          visible:true, graphics:parsed.graphics, bounds, count:parsed.graphics.length, unsupported:parsed.unsupported||new Set(),
+          format, rs274x: type==='drill' ? null : !!parsed.rs274x,
+        });
+      }catch(error){ console.error('Failed to parse',name,error); state.failed.push({name,error:error.message}) }
+    }
+
+    function sniffFileType(name,text){
+      if(/\.(drl|xln|exc)$/i.test(name)) return 'drill';
+      if(/\.(gbr|ger|gtl|gbl|gts|gbs|gto|gbo|gtp|gbp|gko|gml|gm1|g\d+|top|bot|cmp|sol|plc|pls|stc|sts|out|art)$/i.test(name)) return 'gerber';
+      if(/%FS|%MO|%AD|G0?4[^0-9]/m.test(text)) return 'gerber';
+      if(/^\s*M48|^\s*%\s*$|T\d+C[\d.]/m.test(text)) return 'drill';
+      return (/X[+-]?\d/.test(text) && /T\d+\b/.test(text) && !/%FS|%AD/.test(text)) ? 'drill' : 'gerber';
+    }
+
+    function detectLayerKind(name,fileFunction){
+      if(fileFunction){
+        const t=(fileFunction.type||'').toLowerCase(), pos=(fileFunction.pos||'').toLowerCase();
+        if(t==='copper') return pos.includes('top')?'copper-top':pos.includes('bot')?'copper-bottom':'copper-inner';
+        if(t==='soldermask') return pos.includes('top')?'mask-top':'mask-bottom';
+        if(t==='legend') return pos.includes('top')?'silk-top':'silk-bottom';
+        if(t==='paste') return pos.includes('top')?'paste-top':'paste-bottom';
+        if(t==='profile') return 'outline';
+        if(t==='plated'||t==='nonplated'||t==='drill') return 'drill';
+      }
+      const n=name.toLowerCase();
+      if(/(^|[._-])(gko|gml|gm1|edge[._-]?cuts|outline|border)([._-]|$)|\.out$|\.oln$|\.bor$/.test(n)) return 'outline';
+      if(/\.(drl|xln|exc)$/.test(n) || /drill/.test(n)) return 'drill';
+      if(/gtl\b|f[._-]?cu\b|\.cmp$|\.top$|top[._-]?copper|copper[._-]?top/.test(n)) return 'copper-top';
+      if(/gbl\b|b[._-]?cu\b|\.sol$|\.bot$|bottom[._-]?copper|copper[._-]?bottom/.test(n)) return 'copper-bottom';
+      if(/in\d+[._-]?cu|\.g\d+$/.test(n)) return 'copper-inner';
+      if(/gts\b|f[._-]?mask|top[._-]?mask|\.stc$|\.tsm$/.test(n)) return 'mask-top';
+      if(/gbs\b|b[._-]?mask|bottom[._-]?mask|\.sts$|\.bsm$/.test(n)) return 'mask-bottom';
+      if(/gto\b|f[._-]?silks|top[._-]?silk|\.plc$|\.tsk$/.test(n)) return 'silk-top';
+      if(/gbo\b|b[._-]?silks|bottom[._-]?silk|\.pls$|\.bsk$/.test(n)) return 'silk-bottom';
+      if(/gtp\b|f[._-]?paste|top[._-]?paste/.test(n)) return 'paste-top';
+      if(/gbp\b|b[._-]?paste|bottom[._-]?paste/.test(n)) return 'paste-bottom';
+      return 'unknown';
+    }
+
+    // ---------- Gerber (RS-274X) parsing ----------
+
+    function decodeCoord(raw,intD,decD,zeroSup){
+      let sign=1; if(raw[0]==='+'||raw[0]==='-'){if(raw[0]==='-')sign=-1;raw=raw.slice(1)}
+      if(raw.includes('.')) return sign*parseFloat(raw);
+      const total=intD+decD;
+      raw = zeroSup==='T' ? raw.padEnd(total,'0') : raw.padStart(total,'0');
+      const intPart=raw.slice(0,raw.length-decD)||'0', decPart=raw.slice(raw.length-decD)||'0';
+      return sign*parseFloat(intPart+'.'+decPart);
+    }
+
+    function circlePoints(cx,cy,r,n=48){const pts=[];for(let k=0;k<n;k++){const t=k/n*Math.PI*2;pts.push({x:cx+r*Math.cos(t),y:cy+r*Math.sin(t)})}return pts}
+    function rectPoints(w,h,cx=0,cy=0){const x=w/2,y=h/2;return [{x:cx-x,y:cy-y},{x:cx+x,y:cy-y},{x:cx+x,y:cy+y},{x:cx-x,y:cy+y}]}
+    function arcSeg(cx,cy,r,a0,a1,n){const pts=[];for(let k=0;k<=n;k++){const t=a0+(a1-a0)*k/n;pts.push({x:cx+r*Math.cos(t),y:cy+r*Math.sin(t)})}return pts}
+    function obroundPoints(w,h){
+      const r=Math.min(w,h)/2, straight=Math.abs(w-h)/2, pts=[];
+      if(w>=h){ pts.push(...arcSeg(straight,0,r,-Math.PI/2,Math.PI/2,16)); pts.push(...arcSeg(-straight,0,r,Math.PI/2,Math.PI*1.5,16)); }
+      else { pts.push(...arcSeg(0,straight,r,0,Math.PI,16)); pts.push(...arcSeg(0,-straight,r,Math.PI,Math.PI*2,16)); }
+      return pts;
+    }
+    function rotatePts(pts,rad){const c=Math.cos(rad),s=Math.sin(rad);return pts.map(p=>({x:p.x*c-p.y*s,y:p.x*s+p.y*c}))}
+    function translatePts(pts,dx,dy){return pts.map(p=>({x:p.x+dx,y:p.y+dy}))}
+    function vectorLineRect(width,x1,y1,x2,y2){
+      const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy)||1e-9,ux=dx/len,uy=dy/len,px=-uy*width/2,py=ux*width/2;
+      return [{x:x1+px,y:y1+py},{x:x2+px,y:y2+py},{x:x2-px,y:y2-py},{x:x1-px,y:y1-py}];
+    }
+
+    function safeEval(s){
+      let i=0;
+      function num(){let start=i;if(s[i]==='+'||s[i]==='-')i++;while(i<s.length&&/[0-9.]/.test(s[i]))i++;return parseFloat(s.slice(start,i))||0}
+      function factor(){ if(s[i]==='('){i++;const v=expr();if(s[i]===')')i++;return v} if(s[i]==='+'||s[i]==='-'){const neg=s[i]==='-';i++;return (neg?-1:1)*factor()} return num() }
+      function term(){let v=factor();while(s[i]==='*'||s[i]==='/'){const op=s[i];i++;const r=factor();v=op==='*'?v*r:v/r}return v}
+      function expr(){let v=term();while(s[i]==='+'||s[i]==='-'){const op=s[i];i++;const r=term();v=op==='+'?v+r:v-r}return v}
+      return expr();
+    }
+
+    function evalMacro(lines,paramArr){
+      const vars={}; paramArr.forEach((v,idx)=>vars[idx+1]=v);
+      const evalExpr=(raw)=>{
+        let s=String(raw).replace(/\$(\d+)/g,(_,n)=>'('+(vars[n]!==undefined?vars[n]:0)+')').replace(/[xX]/g,'*').replace(/\s+/g,'');
+        try{ return safeEval(s) }catch(e){ return 0 }
+      };
+      const contours=[];
+      lines.forEach(line=>{
+        try{
+          const assign=/^\$(\d+)=(.+)$/.exec(line.trim());
+          if(assign){ vars[assign[1]]=evalExpr(assign[2]); return }
+          const fields=line.split(',').map(f=>f.trim());
+          const code=fields[0];
+          if(!code||code==='0') return;
+          const vals=fields.map(f=>f===''?0:evalExpr(f));
+          if(code==='1'){ const [,exposure,dia,cx,cy,rot]=vals; let pts=circlePoints(0,0,dia/2,32); if(rot)pts=rotatePts(pts,rot*Math.PI/180); contours.push(translatePts(pts,cx,cy)); }
+          else if(code==='20'){ const [,exposure,width,x1,y1,x2,y2,rot]=vals; let pts=vectorLineRect(width,x1,y1,x2,y2); if(rot)pts=rotatePts(pts,rot*Math.PI/180); contours.push(pts); }
+          else if(code==='21'){ const [,exposure,width,height,cx,cy,rot]=vals; let pts=rectPoints(width,height,cx,cy); if(rot)pts=rotatePts(pts,rot*Math.PI/180); contours.push(pts); }
+          else if(code==='4'){ const exposure=vals[1],n=vals[2]; const pts=[]; for(let k=0;k<=n;k++)pts.push({x:vals[3+k*2],y:vals[4+k*2]}); const rot=vals[3+(n+1)*2]||0; contours.push(rot?rotatePts(pts,rot*Math.PI/180):pts); }
+          else if(code==='5'){ const [,exposure,n,cx,cy,dia,rot]=vals; const pts=[]; for(let k=0;k<n;k++){const t=k/n*Math.PI*2;pts.push({x:cx+dia/2*Math.cos(t),y:cy+dia/2*Math.sin(t)})} contours.push(rot?rotatePts(pts,rot*Math.PI/180):pts); }
+          else if(code==='7'){ const [,cx,cy,outerDia]=vals; contours.push(circlePoints(cx,cy,outerDia/2,32)); }
+        }catch(e){ /* skip unsupported primitive line */ }
+      });
+      return contours.length?contours:[circlePoints(0,0,0.15,24)];
+    }
+
+    function circleWithHole(r,hole){const c=[circlePoints(0,0,r)];if(hole>0)c.push(circlePoints(0,0,hole/2,32));return c}
+    function rectWithHole(w,h,hole){const c=[rectPoints(w,h)];if(hole>0)c.push(circlePoints(0,0,hole/2,32));return c}
+    function obroundWithHole(w,h,hole){const c=[obroundPoints(w,h)];if(hole>0)c.push(circlePoints(0,0,hole/2,32));return c}
+    function polygonWithHole(r,sides,rot,hole){const pts=[];for(let k=0;k<sides;k++){const t=rot+k/sides*Math.PI*2;pts.push({x:r*Math.cos(t),y:r*Math.sin(t)})}const c=[pts];if(hole>0)c.push(circlePoints(0,0,hole/2,32));return c}
+
+    function apertureContours(g,ap,cx,cy){
+      const p=ap.params||[]; let local;
+      if(ap.shape==='C') local=circleWithHole(p[0]/2,p[1]);
+      else if(ap.shape==='R') local=rectWithHole(p[0],p[1],p[2]);
+      else if(ap.shape==='O') local=obroundWithHole(p[0],p[1],p[2]);
+      else if(ap.shape==='P') local=polygonWithHole(p[0]/2,Math.max(3,Math.round(p[1]||3)),(p[2]||0)*Math.PI/180,p[3]);
+      else if(g.macros[ap.shape]) local=evalMacro(g.macros[ap.shape],p);
+      else { g.unsupported.add('Aperture shape '+ap.shape); local=[circlePoints(0,0,0.15,24)]; }
+      return local.map(c=>c.map(pt=>({x:pt.x+cx,y:pt.y+cy})));
+    }
+
+    function apertureStrokeWidth(g,ap){
+      const p=ap.params||[];
+      if(ap.shape==='C') return p[0]||0.1;
+      if(ap.shape==='R'||ap.shape==='O') return p[0]||0.1;
+      g.unsupported.add('Non-circular aperture used as draw tool');
+      return 0.1;
+    }
+
+    function arcPoints(x0,y0,x1,y1,i,j,ccw,quad){
+      let cx,cy;
+      if(quad==='single'){
+        const combos=[[i,j],[i,-j],[-i,j],[-i,-j]]; let best=null;
+        combos.forEach(([ti,tj])=>{
+          const ccx=x0+ti,ccy=y0+tj, r0=Math.hypot(x0-ccx,y0-ccy), r1=Math.hypot(x1-ccx,y1-ccy);
+          if(r0<1e-9 || Math.abs(r0-r1)>r0*0.02+1e-6) return;
+          const a0=Math.atan2(y0-ccy,x0-ccx), a1=Math.atan2(y1-ccy,x1-ccx);
+          const sweep = ccw ? ((a1-a0+Math.PI*4)%(Math.PI*2)) : ((a0-a1+Math.PI*4)%(Math.PI*2));
+          if(sweep<=Math.PI/2+1e-3 && (!best||sweep<best.sweep)) best={cx:ccx,cy:ccy,sweep};
+        });
+        if(best){cx=best.cx;cy=best.cy} else {cx=x0+i;cy=y0+j}
+      } else { cx=x0+i; cy=y0+j; }
+      const r=Math.hypot(x0-cx,y0-cy)||1e-6;
+      const a0=Math.atan2(y0-cy,x0-cx);
+      const full=Math.abs(x0-x1)<1e-7 && Math.abs(y0-y1)<1e-7;
+      let sweep;
+      if(full) sweep = ccw ? Math.PI*2 : -Math.PI*2;
+      else { const a1=Math.atan2(y1-cy,x1-cx); sweep = ccw ? ((a1-a0+Math.PI*4)%(Math.PI*2)) : -((a0-a1+Math.PI*4)%(Math.PI*2)); }
+      const segs=Math.max(2,Math.ceil(Math.abs(sweep)/(Math.PI/48)));
+      const pts=[]; for(let k=0;k<=segs;k++){const t=a0+sweep*k/segs;pts.push({x:cx+r*Math.cos(t),y:cy+r*Math.sin(t)})}
+      pts[pts.length-1]={x:x1,y:y1};
+      return pts;
+    }
+
+    function addGraphic(g,graphic){
+      const s=g.units==='in'?25.4:1;
+      const scalePt=p=>({x:p.x*s,y:p.y*s});
+      const scaled = graphic.op==='stroke'
+        ? {op:'stroke',polarity:graphic.polarity,width:graphic.width*s,points:graphic.points.map(scalePt)}
+        : {op:'fill',polarity:graphic.polarity,contours:graphic.contours.map(c=>c.map(scalePt))};
+      const {nx,ny,dx,dy}=g.sr;
+      for(let iy=0;iy<ny;iy++)for(let ix=0;ix<nx;ix++){
+        if(ix===0&&iy===0){ g.graphics.push(scaled); continue }
+        const ox=ix*dx*s, oy=iy*dy*s;
+        if(scaled.op==='stroke') g.graphics.push({op:'stroke',polarity:scaled.polarity,width:scaled.width,points:scaled.points.map(p=>({x:p.x+ox,y:p.y+oy}))});
+        else g.graphics.push({op:'fill',polarity:scaled.polarity,contours:scaled.contours.map(c=>c.map(p=>({x:p.x+ox,y:p.y+oy})))});
+      }
+      return scaled;
+    }
+
+    function emitRegion(g){
+      if(g.curContour && g.curContour.length>2) g.regionContours.push(g.curContour);
+      const contours=g.regionContours.filter(c=>c.length>2);
+      if(contours.length) addGraphic(g,{op:'fill',polarity:g.polarity,contours});
+    }
+
+    function doOperation(g,dcode,x,y,i,j){
+      const ap=g.apertures[g.curAp];
+      if(dcode===2){
+        if(g.region){ if(g.curContour && g.curContour.length>1) g.regionContours.push(g.curContour); g.curContour=[{x,y}]; }
+        g.run=null; g.x=x; g.y=y; return;
+      }
+      if(dcode===1){
+        const pts = g.interp==='linear' ? [{x:g.x,y:g.y},{x,y}] : arcPoints(g.x,g.y,x,y,i,j,g.interp==='ccw',g.quad);
+        if(g.region){ if(!g.curContour) g.curContour=[{x:g.x,y:g.y}]; pts.slice(1).forEach(p=>g.curContour.push(p)); }
+        else if(ap){
+          // Consecutive draws with the pen down are one continuous path: keep them as a
+          // single polyline (a "run") rather than one 2-point stroke per D01. Run identity
+          // is what lets the outline reconstruction tell a complete self-closed shape from
+          // a loose wire — and it gives traces proper joins instead of stacked caps.
+          const s=g.units==='in'?25.4:1, width=apertureStrokeWidth(g,ap), run=g.run;
+          const last=run && run.points[run.points.length-1];
+          const continues = run && run.polarity===g.polarity && Math.abs(run.width-width*s)<1e-9
+            && g.sr.nx===1 && g.sr.ny===1 && Math.abs(last.x-pts[0].x*s)<1e-6 && Math.abs(last.y-pts[0].y*s)<1e-6;
+          if(continues) for(let k=1;k<pts.length;k++) run.points.push({x:pts[k].x*s,y:pts[k].y*s});
+          else {
+            const created=addGraphic(g,{op:'stroke',polarity:g.polarity,width,points:pts});
+            // Under step-repeat the copies were emitted already, so later draws can't extend them.
+            g.run = (g.sr.nx===1 && g.sr.ny===1) ? created : null;
+          }
+        }
+        else g.unsupported.add('Draw with no aperture selected');
+        g.x=x; g.y=y; return;
+      }
+      if(dcode===3){
+        if(g.region){ g.unsupported.add('Flash inside region'); }
+        else if(!ap){ g.unsupported.add('Flash with no aperture selected'); }
+        else addGraphic(g,{op:'fill',polarity:g.polarity,contours:apertureContours(g,ap,x,y)});
+        g.run=null; g.x=x; g.y=y; return;
+      }
+    }
+
+    function handleDataBlock(g,block){
+      const tokens=block.match(/[A-Za-z][+-]?\d*\.?\d*/g); if(!tokens) return;
+      let gcodes=[], dcode=null, hasX=false,hasY=false,hasI=false,hasJ=false, ival=0,jval=0, newX=g.x, newY=g.y;
+      tokens.forEach(tok=>{
+        const letter=tok[0].toUpperCase(), rest=tok.slice(1);
+        if(letter==='G') gcodes.push(parseInt(rest,10));
+        else if(letter==='D') dcode=parseInt(rest,10);
+        else if(letter==='X'){ hasX=true; newX=decodeCoord(rest,g.xInt,g.xDec,g.zeroSup) }
+        else if(letter==='Y'){ hasY=true; newY=decodeCoord(rest,g.yInt,g.yDec,g.zeroSup) }
+        else if(letter==='I'){ hasI=true; ival=decodeCoord(rest,g.xInt,g.xDec,g.zeroSup) }
+        else if(letter==='J'){ hasJ=true; jval=decodeCoord(rest,g.yInt,g.yDec,g.zeroSup) }
+      });
+      gcodes.forEach(code=>{
+        if(code===1) g.interp='linear'; else if(code===2) g.interp='cw'; else if(code===3) g.interp='ccw';
+        else if(code===36){ g.region=true; g.regionContours=[]; g.curContour=null; g.run=null; }
+        else if(code===37){ if(g.region) emitRegion(g); g.region=false; g.regionContours=null; g.curContour=null; g.run=null; }
+        else if(code===74) g.quad='single'; else if(code===75) g.quad='multi';
+      });
+      if(dcode!=null && dcode>=10){ g.curAp=dcode; g.run=null; }
+      if(dcode===1||dcode===2||dcode===3) doOperation(g,dcode,newX,newY,hasI?ival:0,hasJ?jval:0);
+      else if(hasX||hasY){ g.x=newX; g.y=newY; }
+    }
+
+    function handleParamStmt(g,stmt){
+      let mm;
+      if((mm=/^FS([LT])([AI])X(\d)(\d)Y(\d)(\d)/i.exec(stmt))){ g.zeroSup=mm[1].toUpperCase(); g.xInt=+mm[3]; g.xDec=+mm[4]; g.yInt=+mm[5]; g.yDec=+mm[6]; g.sawFS=true; return }
+      if(/^MOIN/i.test(stmt)){ g.units='in'; g.sawMO=true; return }
+      if(/^MOMM/i.test(stmt)){ g.units='mm'; g.sawMO=true; return }
+      if((mm=/^ADD(\d+)([A-Za-z_$][\w.$-]*)(?:,(.*))?$/i.exec(stmt))){
+        const code=+mm[1], shape=mm[2], raw=mm[3]||'';
+        g.apertures[code]={shape, params: raw?raw.split('X').map(Number):[]};
+        g.sawAD=true;
+        return;
+      }
+      if(/^LPD/i.test(stmt)){ g.polarity='dark'; g.run=null; return }
+      if(/^LPC/i.test(stmt)){ g.polarity='clear'; g.run=null; return }
+      if((mm=/^SRX(\d+)Y(\d+)I([\d.]+)J([\d.]+)/i.exec(stmt))){ g.sr={nx:+mm[1],ny:+mm[2],dx:+mm[3],dy:+mm[4]}; return }
+      if(/^SR$/i.test(stmt)){ g.sr={nx:1,ny:1,dx:0,dy:0}; return }
+      if((mm=/^TF\.FileFunction,([^,]+)(?:,(.*))?$/i.exec(stmt))){ g.fileFunction={type:mm[1],pos:mm[2]}; return }
+    }
+
+    function handleParam(g,content){
+      if(/^AM/i.test(content)){
+        const parts=content.split('*').filter(s=>s.length);
+        const header=parts.shift();
+        g.macros[header.slice(2).trim()]=parts.map(p=>p.trim()).filter(Boolean);
+        return;
+      }
+      content.split('*').map(s=>s.trim()).filter(Boolean).forEach(stmt=>handleParamStmt(g,stmt));
+    }
+
+    function parseGerberText(text){
+      const g={
+        units:'in', xInt:2,xDec:4, yInt:2,yDec:4, zeroSup:'L',
+        apertures:{}, macros:{}, curAp:null, polarity:'dark', interp:'linear', quad:'multi',
+        region:false, regionContours:null, curContour:null, x:0, y:0,
+        graphics:[], unsupported:new Set(), sr:{nx:1,ny:1,dx:0,dy:0}, fileFunction:null,
+        sawFS:false, sawMO:false, sawAD:false, run:null,
+      };
+      const paramRe=/%([^%]*)%/g; let m, lastIndex=0, plain='';
+      while((m=paramRe.exec(text))){ plain+=text.slice(lastIndex,m.index)+' '; handleParam(g,m[1]); lastIndex=paramRe.lastIndex; }
+      plain+=text.slice(lastIndex);
+      plain.split('*').forEach(block=>{ block=block.trim(); if(block) handleDataBlock(g,block); });
+      // RS-274X (extended Gerber) requires a format spec and defined apertures, unlike
+      // obsolete RS-274D which relies on an external, out-of-band aperture list.
+      const rs274x = g.sawFS && g.sawAD;
+      return {graphics:g.graphics, unsupported:g.unsupported, fileFunction:g.fileFunction, rs274x, sawFS:g.sawFS, sawMO:g.sawMO, sawAD:g.sawAD};
+    }
+
+    // ---------- Excellon drill parsing ----------
+
+    function parseXY(line,g,fallback){
+      const mx=/X([+-]?[\d.]+)/i.exec(line), my=/Y([+-]?[\d.]+)/i.exec(line);
+      if(!mx && !my) return null;
+      const decode=raw=>decodeCoord(raw,g.intD,g.decD,g.zeroSup);
+      return { x: mx?decode(mx[1]):(fallback?fallback.x:g.x), y: my?decode(my[1]):(fallback?fallback.y:g.y) };
+    }
+
+    function parseExcellonText(text){
+      const g={units:'in', intD:2, decD:4, zeroSup:'L', tools:{}, curTool:null, x:0, y:0, graphics:[], unsupported:new Set(), routing:false};
+      const s=()=>g.units==='in'?25.4:1;
+      text.split(/\r?\n/).forEach(raw=>{
+        const line=raw.trim(); if(!line || line[0]===';') return;
+        let mm;
+        if(/^M48|^%$|^M30|^M02|^M00|^G90|^G05|^FMAT/i.test(line)) return;
+        if((mm=/^(INCH|METRIC)(?:,\s*(LZ|TZ))?/i.exec(line))){
+          g.units=/INCH/i.test(mm[1])?'in':'mm';
+          if(mm[2]) g.zeroSup = mm[2].toUpperCase()==='LZ' ? 'T':'L';
+          if(g.units==='in'){g.intD=2;g.decD=4} else {g.intD=3;g.decD=3}
+          return;
+        }
+        if(/^M72/i.test(line)){ g.units='in'; return }
+        if(/^M71/i.test(line)){ g.units='mm'; return }
+        if((mm=/^T0*0(?![\d])/i.exec(line))) return;
+        if((mm=/^T(\d+)C([\d.]+)/i.exec(line))){ g.tools[+mm[1]]={dia:parseFloat(mm[2])}; return }
+        if((mm=/^T(\d+)$/i.exec(line))){ g.curTool=+mm[1]; return }
+        if(/^M15/i.test(line)){ g.routing=true; return }
+        if(/^M16|^M17/i.test(line)){ g.routing=false; return }
+        if(/^G00/i.test(line)){ const p=parseXY(line,g); if(p){g.x=p.x;g.y=p.y} return }
+        if(/^G0?1/i.test(line) && g.routing){
+          const p=parseXY(line,g);
+          if(p){ const dia=(g.tools[g.curTool]||{}).dia||0.3; g.graphics.push({op:'stroke',polarity:'dark',width:dia*s(),points:[{x:g.x*s(),y:g.y*s()},{x:p.x*s(),y:p.y*s()}]}); g.x=p.x; g.y=p.y; }
+          return;
+        }
+        if(/^[XY]/i.test(line)){
+          if(/G85/i.test(line)){
+            const [before,after]=line.split(/G85/i);
+            const p1=parseXY(before,g), p2=parseXY(after||'',g,p1);
+            if(p1){ const dia=(g.tools[g.curTool]||{}).dia||0.3; g.graphics.push({op:'stroke',polarity:'dark',width:dia*s(),points:[{x:p1.x*s(),y:p1.y*s()},{x:(p2||p1).x*s(),y:(p2||p1).y*s()}]}); g.x=(p2||p1).x; g.y=(p2||p1).y; }
+            return;
+          }
+          if(g.routing){
+            const p=parseXY(line,g);
+            if(p){ const dia=(g.tools[g.curTool]||{}).dia||0.3; g.graphics.push({op:'stroke',polarity:'dark',width:dia*s(),points:[{x:g.x*s(),y:g.y*s()},{x:p.x*s(),y:p.y*s()}]}); g.x=p.x; g.y=p.y; }
+            return;
+          }
+          const p=parseXY(line,g);
+          if(p){ const dia=(g.tools[g.curTool]||{}).dia||0.3; g.graphics.push({op:'fill',polarity:'dark',contours:[circlePoints(p.x*s(),p.y*s(),dia*s()/2,24)]}); g.x=p.x; g.y=p.y; }
+        }
+      });
+      return {graphics:g.graphics, unsupported:g.unsupported};
+    }
+
+    // ---------- Geometry / bounds ----------
+
+    function buildPath2D(graphic){
+      const p=new Path2D();
+      if(graphic.op==='stroke'){ const pts=graphic.points; p.moveTo(pts[0].x,pts[0].y); for(let k=1;k<pts.length;k++)p.lineTo(pts[k].x,pts[k].y); }
+      else { graphic.contours.forEach(c=>{ if(c.length<3) return; p.moveTo(c[0].x,c[0].y); for(let k=1;k<c.length;k++)p.lineTo(c[k].x,c[k].y); p.closePath(); }); }
+      graphic._path=p;
+    }
+
+    function getGraphicsBounds(graphics,pad=true){
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      graphics.forEach(g=>{
+        const pts = g.op==='stroke' ? g.points : g.contours.flat();
+        const p = (pad && g.op==='stroke') ? (g.width||0)/2 : 0;
+        pts.forEach(pt=>{ if(Number.isFinite(pt.x)&&Number.isFinite(pt.y)){ minX=Math.min(minX,pt.x-p); minY=Math.min(minY,pt.y-p); maxX=Math.max(maxX,pt.x+p); maxY=Math.max(maxY,pt.y+p); } });
+      });
+      return Number.isFinite(minX)?{minX,minY,maxX,maxY}:null;
+    }
+
+    function combineBounds(list){
+      if(!list.length) return null;
+      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+      list.forEach(b=>{ minX=Math.min(minX,b.minX); minY=Math.min(minY,b.minY); maxX=Math.max(maxX,b.maxX); maxY=Math.max(maxY,b.maxY); });
+      return {minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY,centerX:(minX+maxX)/2,centerY:(minY+maxY)/2};
+    }
+
+    function getOverallBounds(){ return combineBounds(state.layers.map(l=>l.bounds).filter(Boolean)); }
+
+    // The true board outer dimension is the *centerline* of the board-outline/edge-cuts
+    // layer, not its stroke-padded bounding box (which would overstate size by half the
+    // outline trace width) and not the bounding box of every layer (silkscreen or copper
+    // can extend slightly past the edge). Falls back to the combined bounds of everything
+    // when no outline layer is present, since some jobs omit one.
+    function getBoardBounds(){
+      const outlineLayers=state.layers.filter(l=>l.kind==='outline' && l.graphics.length);
+      if(!outlineLayers.length) return {bounds:state.bounds, fromOutline:false};
+      const bounds=combineBounds(outlineLayers.map(l=>getGraphicsBounds(l.graphics,false)).filter(Boolean));
+      return bounds ? {bounds, fromOutline:true} : {bounds:state.bounds, fromOutline:false};
+    }
+
+    // Rebuilds the outline layer's closed shapes (outer board edge + cutouts) from its
+    // pen-down runs. Real exports mix two representations of the same geometry: complete
+    // self-closed polylines (one run traces the whole shape back to its start), and loose
+    // wires — each edge or pre-flattened arc as its own run, in arbitrary order and drawn
+    // in arbitrary direction (two wires of a shape commonly *start* at their shared corner).
+    // A self-closed run is taken as-is and never touched again. Only the loose wires are
+    // stitched: a wire may continue an open chain from either end, in either direction, and
+    // whenever a chain grows it is merged with any other chain it now touches, so shapes
+    // whose edges arrive out of order still assemble. A chain only counts once it returns
+    // to its own start; whatever never closes is dropped rather than guessed at. Doing the
+    // stitching per run (not per segment) is what prevents a closed polyline from being
+    // glued onto a loose wire that merely shares one of its vertices.
+    function buildOutlinePolygons(outlineLayers,tolerance=0.05){
+      const tol2=tolerance*tolerance, near=(a,b)=>{const dx=a.x-b.x,dy=a.y-b.y;return dx*dx+dy*dy<=tol2};
+      const loops=[], wires=[];
+      outlineLayers.forEach(layer=>layer.graphics.forEach(g=>{
+        if(g.op==='fill'){ g.contours.forEach(c=>{ if(c.length>2) loops.push(c) }); return; }
+        if(g.op!=='stroke' || !g.points || g.points.length<2) return;
+        const pts=g.points;
+        if(pts.length>3 && near(pts[0],pts[pts.length-1])) loops.push(pts.slice(0,-1));
+        else if(!(pts.length===2 && near(pts[0],pts[1]))) wires.push(pts.slice());
+      }));
+
+      const open=[];
+      const append=(c,arr)=>{ for(const p of arr) c.push(p); };
+      const prepend=(c,arr)=>{ const m=arr.concat(c); c.length=0; append(c,m); };
+      // Joins `w` (a wire or another chain) onto either end of `c` if they touch; false otherwise.
+      const join=(c,w)=>{
+        const cS=c[0], cE=c[c.length-1], wS=w[0], wE=w[w.length-1];
+        if(near(cE,wS)) append(c,w.slice(1));
+        else if(near(cE,wE)) append(c,w.slice(0,-1).reverse());
+        else if(near(cS,wE)) prepend(c,w.slice(0,-1));
+        else if(near(cS,wS)) prepend(c,w.slice(1).reverse());
+        else return false;
+        return true;
+      };
+      for(const w of wires){
+        let c=open.find(o=>join(o,w));
+        if(!c){ c=w.slice(); open.push(c); }
+        for(let merged=true; merged;){
+          merged=false;
+          for(const o of open){ if(o!==c && join(c,o)){ open.splice(open.indexOf(o),1); merged=true; break; } }
+        }
+        if(c.length>3 && near(c[0],c[c.length-1])){ loops.push(c.slice(0,-1)); open.splice(open.indexOf(c),1); }
+      }
+      return loops;
+    }
+
+    function polygonArea(pts){ let a=0; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length]; a+=p.x*q.y-q.x*p.y; } return Math.abs(a)/2; }
+    function loopBounds(c){ let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity; c.forEach(p=>{minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y)}); return {minX,minY,maxX,maxY}; }
+    // Bounding-box center rather than a vertex average: a closed loop's start/end point is
+    // stored twice (once as the closing vertex), so averaging raw points double-weights
+    // whichever vertex the trace happened to start at — the same physical polygon retraced
+    // from a different starting corner then computes a different "centroid" entirely, which
+    // silently defeats duplicate detection and the cutout-containment check below. The
+    // bounding-box center is identical regardless of where the trace starts.
+    function loopCentroid(c){ const b=loopBounds(c); return {x:(b.minX+b.maxX)/2,y:(b.minY+b.maxY)/2}; }
+    function contourPath(c){ const p=new Path2D(); p.moveTo(c[0].x,c[0].y); for(let k=1;k<c.length;k++) p.lineTo(c[k].x,c[k].y); p.closePath(); return p; }
+
+    // CAD tools commonly carry the same shape twice on the outline layer (e.g. Eagle emits
+    // each cutout both as loose dimension wires and as a closed milling polyline, and the
+    // board edge on both) — every real shape can end up duplicated. A duplicate pair is
+    // catastrophic under the outer/cutout split below: the outer boundary and its own twin
+    // would classify as outer-plus-cutout and punch the fill down to nothing. Duplicates
+    // are matched on bounding box, not area: the two copies flatten their arcs with
+    // different segment counts, so their areas differ slightly while their extents agree.
+    function dedupeLoops(loops,tolerance=0.1){
+      const kept=[];
+      loops.forEach(c=>{
+        const b=loopBounds(c), e=Math.max(tolerance, 0.01*Math.max(b.maxX-b.minX,b.maxY-b.minY));
+        const isDup=kept.some(k=>Math.abs(k.minX-b.minX)<=e && Math.abs(k.maxX-b.maxX)<=e && Math.abs(k.minY-b.minY)<=e && Math.abs(k.maxY-b.maxY)<=e);
+        if(!isDup) kept.push(Object.assign({c},b));
+      });
+      return kept.map(k=>k.c);
+    }
+
+    // Classifies the reconstructed loops: the largest by area is the outer board boundary,
+    // and every other loop whose centroid falls inside that boundary's bounding box is a
+    // cutout — anything outside it (stray marks, mis-traced fragments) is dropped rather
+    // than silently becoming part of the board. Kept as separate Path2Ds (outer solid fill,
+    // cutouts individually punched via destination-out) rather than one evenodd path,
+    // since real board-outline exports occasionally retrace an edge or leave a gap, and
+    // evenodd's parity counting silently inverts (fills the cutout, leaves the board empty)
+    // the moment a contour isn't perfectly simple and singly-wound.
+    function computeBoardGeometry(){
+      const outlineLayers=state.layers.filter(l=>l.kind==='outline' && l.graphics.length);
+      // Loops with (near-)zero area are a wire retraced back over itself, not a shape.
+      const loops = outlineLayers.length ? dedupeLoops(buildOutlinePolygons(outlineLayers).filter(c=>polygonArea(c)>1e-4)) : [];
+      if(!loops.length){ state.boardOuterPath=null; state.boardCutoutPaths=[]; state.boardCutoutCount=0; return; }
+      let outerIdx=0, outerArea=-1;
+      loops.forEach((c,i)=>{ const a=polygonArea(c); if(a>outerArea){ outerArea=a; outerIdx=i; } });
+      const outer=loops[outerIdx], outerBounds=loopBounds(outer);
+      const cutouts=loops.filter((c,i)=>{
+        if(i===outerIdx) return false;
+        const ctr=loopCentroid(c);
+        return ctr.x>=outerBounds.minX && ctr.x<=outerBounds.maxX && ctr.y>=outerBounds.minY && ctr.y<=outerBounds.maxY;
+      });
+      state.boardOuterPath=contourPath(outer);
+      state.boardCutoutPaths=cutouts.map(contourPath);
+      state.boardCutoutCount=cutouts.length;
+    }
+
+    // Fills the board's true silhouette (outer boundary minus cutouts) on the given
+    // context — falls back to the overall bounding box when no outline layer reconstructed.
+    function fillBoardSilhouette(ctx,color){
+      ctx.fillStyle=color;
+      if(!state.boardOuterPath){ const b=state.bounds; if(b) ctx.fillRect(b.minX,b.minY,b.width,b.height); return; }
+      ctx.fill(state.boardOuterPath);
+      const prevOp=ctx.globalCompositeOperation;
+      ctx.globalCompositeOperation='destination-out';
+      state.boardCutoutPaths.forEach(p=>ctx.fill(p));
+      ctx.globalCompositeOperation=prevOp;
+    }
+
+    // ---------- Legend ----------
+
+    function orderedLayers(){ return [...state.layers].sort((a,b)=>(ZORDER[a.kind]||10)-(ZORDER[b.kind]||10)); }
+
+    function buildLegend(){
+      if(!state.layers.length){ legendWrap.classList.add('hidden'); layerLegend.innerHTML=''; return }
+      legendWrap.classList.remove('hidden');
+      const list=[...state.layers].sort((a,b)=>(ZORDER[b.kind]||10)-(ZORDER[a.kind]||10));
+      layerLegend.innerHTML=list.map(layer=>`<span class="layer-chip${layer.visible?'':' inactive'}" data-id="${escapeHtml(layer.id)}" title="${escapeHtml(layer.name)} — ${escapeHtml(layer.format)}"><span class="dot" style="background:${layer.color}"></span>${escapeHtml(layer.label)} <span class="count">${layer.count}</span></span>`).join('');
+      layerLegend.querySelectorAll('.layer-chip').forEach(chip=>{
+        chip.onclick=()=>{
+          const layer=state.layers.find(l=>l.id===chip.getAttribute('data-id'));
+          layer.visible=!layer.visible; chip.classList.toggle('inactive',!layer.visible); render();
+        };
+      });
+    }
+
+    function toggleAll(visible){ state.layers.forEach(l=>l.visible=visible); buildLegend(); render(); }
+
+    function updateSummary(){
+      if(!state.bounds){ fileName.textContent='No geometry found'; fileSummary.textContent=''; return }
+      const {bounds:b,fromOutline}=getBoardBounds();
+      const total=state.layers.reduce((sum,l)=>sum+l.count,0);
+      const rs274xCount=state.layers.filter(l=>l.rs274x===true).length;
+      const drillCount=state.layers.filter(l=>l.format==='Excellon').length;
+      fileName.textContent=`${fmt(b.width,2)} × ${fmt(b.height,2)} mm  (${fmt(b.width/25.4,3)} × ${fmt(b.height/25.4,3)} in)`;
+      const source = fromOutline ? 'board outline' : 'all layers — no outline layer found';
+      const shape = state.boardOuterPath
+        ? `board shape traced${state.boardCutoutCount ? ` (${state.boardCutoutCount} cutout${state.boardCutoutCount===1?'':'s'} detected)` : ', no cutouts'}`
+        : 'board shape not traced — preview uses bounding box';
+      fileSummary.textContent=`Outer dimension from ${source} · ${shape} · ${state.layers.length} layers (${rs274xCount} RS-274X, ${drillCount} drill) · ${total.toLocaleString()} primitives`;
+    }
+
+    // ---------- Rendering ----------
+
+    function resize(){ const r=wrap.getBoundingClientRect(), d=window.devicePixelRatio||1; canvas.width=Math.max(1,Math.round(r.width*d)); canvas.height=Math.max(1,Math.round(r.height*d)); render(); }
+    function fitDrawing(){
+      if(!state.bounds) return;
+      const r=wrap.getBoundingClientRect(), m=50, w=Math.max(state.bounds.width,1e-9), h=Math.max(state.bounds.height,1e-9);
+      state.zoom=Math.max(1e-6,Math.min((r.width-m*2)/w,(r.height-m*2)/h));
+      state.panX=-state.bounds.centerX*state.zoom; state.panY=state.bounds.centerY*state.zoom; render();
+    }
+    function toScreen(p){ const r=wrap.getBoundingClientRect(); return {x:r.width/2+state.panX+p.x*state.zoom, y:r.height/2+state.panY-p.y*state.zoom} }
+    function toCad(x,y){ const r=wrap.getBoundingClientRect(); return {x:(x-r.width/2-state.panX)/state.zoom, y:(r.height/2+state.panY-y)/state.zoom} }
+    function viewTransform(d){ const r=wrap.getBoundingClientRect(); return {a:d*state.zoom,b:0,c:0,d:-d*state.zoom,e:d*(r.width/2+state.panX),f:d*(r.height/2+state.panY)} }
+
+    function ensureMaskSize(){ if(maskCanvas.width!==canvas.width||maskCanvas.height!==canvas.height){ maskCanvas.width=canvas.width; maskCanvas.height=canvas.height; } }
+
+    function drawLayerToMask(layer,d){
+      ensureMaskSize();
+      const t=viewTransform(d);
+      maskCtx.setTransform(1,0,0,1,0,0); maskCtx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+      maskCtx.setTransform(t.a,t.b,t.c,t.d,t.e,t.f);
+      maskCtx.lineCap='round'; maskCtx.lineJoin='round';
+      const minW=0.6/(d*state.zoom);
+      layer.graphics.forEach(g=>{
+        maskCtx.globalCompositeOperation = g.polarity==='clear' ? 'destination-out' : 'source-over';
+        if(g.op==='stroke'){ maskCtx.strokeStyle='#fff'; maskCtx.lineWidth=Math.max(g.width,minW); maskCtx.stroke(g._path); }
+        else { maskCtx.fillStyle='#fff'; maskCtx.fill(g._path,'evenodd'); }
+      });
+      maskCtx.globalCompositeOperation='source-over';
+    }
+
+    function compositeMask(layer,mode,d){
+      maskCtx.setTransform(1,0,0,1,0,0);
+      maskCtx.globalCompositeOperation='source-in';
+      maskCtx.fillStyle=layer.color;
+      maskCtx.fillRect(0,0,maskCanvas.width,maskCanvas.height);
+      maskCtx.globalCompositeOperation='source-over';
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.globalCompositeOperation = mode==='punch' ? 'destination-out' : 'source-over';
+      ctx.globalAlpha = mode==='punch' ? 1 : (layer.alpha??1);
+      ctx.drawImage(maskCanvas,0,0);
+      ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+      ctx.setTransform(d,0,0,d,0,0);
+    }
+
+    function render(){
+      const r=wrap.getBoundingClientRect(), d=window.devicePixelRatio||1;
+      ctx.setTransform(d,0,0,d,0,0); ctx.clearRect(0,0,r.width,r.height); ctx.fillStyle='#020617'; ctx.fillRect(0,0,r.width,r.height);
+      if(!state.layers.length) return;
+      const o=toScreen({x:0,y:0}); ctx.strokeStyle='rgba(148,163,184,.15)'; ctx.lineWidth=1; ctx.beginPath();
+      if(o.x>=0&&o.x<=r.width){ ctx.moveTo(o.x,0); ctx.lineTo(o.x,r.height); }
+      if(o.y>=0&&o.y<=r.height){ ctx.moveTo(0,o.y); ctx.lineTo(r.width,o.y); }
+      ctx.stroke();
+      orderedLayers().forEach(layer=>{
+        if(!layer.visible || !layer.graphics.length) return;
+        drawLayerToMask(layer,d);
+        compositeMask(layer, 'tint', d);
+      });
+      if(state.bounds){
+        const tl=toScreen({x:state.bounds.minX,y:state.bounds.maxY}), br=toScreen({x:state.bounds.maxX,y:state.bounds.minY});
+        ctx.strokeStyle='rgba(56,189,248,.35)'; ctx.setLineDash([4,4]); ctx.strokeRect(tl.x,tl.y,br.x-tl.x,br.y-tl.y); ctx.setLineDash([]);
+      }
+    }
+
+    function zoom(factor,x,y){
+      if(!state.layers.length) return;
+      const before=toCad(x,y); state.zoom=Math.max(1e-6,Math.min(1e6,state.zoom*factor));
+      const after=toScreen(before); state.panX+=x-after.x; state.panY+=y-after.y; render();
+    }
+    fitBtn.onclick=fitDrawing;
+    zoomIn.onclick=()=>{ const r=wrap.getBoundingClientRect(); zoom(1.25,r.width/2,r.height/2) };
+    zoomOut.onclick=()=>{ const r=wrap.getBoundingClientRect(); zoom(.8,r.width/2,r.height/2) };
+    canvas.onwheel=e=>{ e.preventDefault(); const r=canvas.getBoundingClientRect(); zoom(e.deltaY<0?1.15:.87, e.clientX-r.left, e.clientY-r.top) };
+    canvas.onpointerdown=e=>{ if(!state.layers.length) return; state.drag=true; state.dragX=e.clientX-state.panX; state.dragY=e.clientY-state.panY; canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging') };
+    canvas.onpointermove=e=>{
+      const r=canvas.getBoundingClientRect();
+      if(state.drag){ state.panX=e.clientX-state.dragX; state.panY=e.clientY-state.dragY; render(); }
+      if(state.layers.length){ const p=toCad(e.clientX-r.left,e.clientY-r.top); coordinates.textContent=`X: ${fmt(p.x,3)} mm   Y: ${fmt(p.y,3)} mm`; }
+    };
+    const endDrag=e=>{ state.drag=false; canvas.classList.remove('dragging'); if(e.pointerId!=null && canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId) };
+    canvas.onpointerup=endDrag; canvas.onpointercancel=endDrag;
+
+    // ---------- Board preview (composited, realistic Top/Bottom render) ----------
+
+    function ensureCanvasSize(cv,ref){ if(cv.width!==ref.width||cv.height!==ref.height){ cv.width=ref.width; cv.height=ref.height; } }
+
+    function previewTransform(d){
+      const r=previewWrap.getBoundingClientRect();
+      if(!state.bounds) return {a:d,b:0,c:0,d:-d,e:d*r.width/2,f:d*r.height/2};
+      const m=20, w=Math.max(state.bounds.width,1e-9), h=Math.max(state.bounds.height,1e-9);
+      const scale=Math.max(1e-6,Math.min((r.width-m*2)/w,(r.height-m*2)/h));
+      const mirror = state.previewSide==='bottom' ? -1 : 1;
+      return { a:d*scale*mirror, b:0, c:0, d:-d*scale, e:d*(r.width/2-mirror*scale*state.bounds.centerX), f:d*(r.height/2+scale*state.bounds.centerY) };
+    }
+
+    function drawGraphicsToPreviewMask(layers,t){
+      ensureCanvasSize(previewMaskCanvas,previewCanvas);
+      previewMaskCtx.setTransform(1,0,0,1,0,0); previewMaskCtx.clearRect(0,0,previewMaskCanvas.width,previewMaskCanvas.height);
+      previewMaskCtx.setTransform(t.a,t.b,t.c,t.d,t.e,t.f);
+      previewMaskCtx.lineCap='round'; previewMaskCtx.lineJoin='round';
+      const minW=0.6/Math.abs(t.a||1);
+      layers.forEach(layer=>layer.graphics.forEach(g=>{
+        previewMaskCtx.globalCompositeOperation = g.polarity==='clear' ? 'destination-out':'source-over';
+        if(g.op==='stroke'){ previewMaskCtx.strokeStyle='#fff'; previewMaskCtx.lineWidth=Math.max(g.width,minW); previewMaskCtx.stroke(g._path); }
+        else { previewMaskCtx.fillStyle='#fff'; previewMaskCtx.fill(g._path,'evenodd'); }
+      }));
+      previewMaskCtx.globalCompositeOperation='source-over';
+    }
+
+    // Soldermask gerbers define OPENINGS (exposed copper/pads), not coverage — the real
+    // board is mask-covered everywhere else by omission. To render that: fill the whole
+    // board footprint, then cut the mask layer's shapes back out of it.
+    function drawInvertedMaskToPreviewMask(layers,t){
+      ensureCanvasSize(previewMaskCanvas,previewCanvas);
+      previewMaskCtx.setTransform(1,0,0,1,0,0); previewMaskCtx.clearRect(0,0,previewMaskCanvas.width,previewMaskCanvas.height);
+      previewMaskCtx.setTransform(t.a,t.b,t.c,t.d,t.e,t.f);
+      previewMaskCtx.lineCap='round'; previewMaskCtx.lineJoin='round';
+      previewMaskCtx.globalCompositeOperation='source-over';
+      fillBoardSilhouette(previewMaskCtx,'#fff');
+      const minW=0.6/Math.abs(t.a||1);
+      layers.forEach(layer=>layer.graphics.forEach(g=>{
+        previewMaskCtx.globalCompositeOperation = g.polarity==='clear' ? 'source-over' : 'destination-out';
+        if(g.op==='stroke'){ previewMaskCtx.strokeStyle='#fff'; previewMaskCtx.lineWidth=Math.max(g.width,minW); previewMaskCtx.stroke(g._path); }
+        else { previewMaskCtx.fillStyle='#fff'; previewMaskCtx.fill(g._path,'evenodd'); }
+      }));
+      previewMaskCtx.globalCompositeOperation='source-over';
+    }
+
+    function compositePreviewMask(color,alpha,mode,d){
+      previewMaskCtx.setTransform(1,0,0,1,0,0);
+      previewMaskCtx.globalCompositeOperation='source-in';
+      previewMaskCtx.fillStyle=color;
+      previewMaskCtx.fillRect(0,0,previewMaskCanvas.width,previewMaskCanvas.height);
+      previewMaskCtx.globalCompositeOperation='source-over';
+      previewCtx.setTransform(1,0,0,1,0,0);
+      previewCtx.globalCompositeOperation = mode==='punch' ? 'destination-out':'source-over';
+      previewCtx.globalAlpha = mode==='punch' ? 1 : alpha;
+      previewCtx.drawImage(previewMaskCanvas,0,0);
+      previewCtx.globalCompositeOperation='source-over'; previewCtx.globalAlpha=1;
+      previewCtx.setTransform(d,0,0,d,0,0);
+    }
+
+    function renderPreview(){
+      const r=previewWrap.getBoundingClientRect(), d=window.devicePixelRatio||1;
+      previewCtx.setTransform(d,0,0,d,0,0); previewCtx.clearRect(0,0,r.width,r.height);
+      if(!state.layers.length || !state.bounds){ previewEmpty.classList.remove('hidden'); return; }
+      previewEmpty.classList.add('hidden');
+      const t=previewTransform(d), b=state.bounds, side=state.previewSide;
+      const copperKind=side==='top'?'copper-top':'copper-bottom', maskKind=side==='top'?'mask-top':'mask-bottom', silkKind=side==='top'?'silk-top':'silk-bottom';
+      const outlineLayers=state.layers.filter(l=>l.kind==='outline'&&l.graphics.length);
+      const copperLayers=state.layers.filter(l=>l.kind===copperKind&&l.graphics.length);
+      const maskLayers=state.layers.filter(l=>l.kind===maskKind&&l.graphics.length);
+      const silkLayers=state.layers.filter(l=>l.kind===silkKind&&l.graphics.length);
+      const drillLayers=state.layers.filter(l=>l.kind==='drill'&&l.graphics.length);
+
+      const bc = BOARD_COLORS[state.boardColor] || BOARD_COLORS.green;
+      previewCtx.setTransform(t.a,t.b,t.c,t.d,t.e,t.f);
+      fillBoardSilhouette(previewCtx,bc.substrate);
+      previewCtx.setTransform(d,0,0,d,0,0);
+
+      if(copperLayers.length){ drawGraphicsToPreviewMask(copperLayers,t); compositePreviewMask('#c9793f',0.97,'tint',d); }
+      if(maskLayers.length){ drawInvertedMaskToPreviewMask(maskLayers,t); compositePreviewMask(side==='top'?bc.mask:bc.maskBottom,0.82,'tint',d); }
+      if(silkLayers.length){ drawGraphicsToPreviewMask(silkLayers,t); compositePreviewMask(bc.silk,0.95,'tint',d); }
+      if(drillLayers.length){ drawGraphicsToPreviewMask(drillLayers,t); compositePreviewMask('#000',1,'punch',d); }
+      if(outlineLayers.length){ drawGraphicsToPreviewMask(outlineLayers,t); compositePreviewMask('#eab308',0.55,'tint',d); }
+    }
+
+    function resizePreview(){ const r=previewWrap.getBoundingClientRect(), d=window.devicePixelRatio||1; previewCanvas.width=Math.max(1,Math.round(r.width*d)); previewCanvas.height=Math.max(1,Math.round(r.height*d)); renderPreview(); }
+
+    new ResizeObserver(resize).observe(wrap); resize();
+    new ResizeObserver(resizePreview).observe(previewWrap); resizePreview();
+    window.GerberPreview=Object.freeze({loadFiles, getState:()=>state, renderPreview, setPreviewSide});
+  })();
+  </script>
+</body>
+</html>
