@@ -520,8 +520,8 @@
         <div class="form-group">
           <label>Rotor Configuration</label>
           <div class="segmented-control" id="rotorConfigToggle">
-            <button type="button" class="active" data-val="dual">Dual Rotor (Sandwich)</button>
-            <button type="button" data-val="single">Single Rotor</button>
+            <button type="button" data-val="dual">Dual Rotor (Sandwich)</button>
+            <button type="button" class="active" data-val="single">Single Rotor</button>
           </div>
         </div>
       </div>
@@ -577,7 +577,7 @@
 
         <div class="form-group">
           <label for="dcVoltage">H-Bridge DC Bus [V]</label>
-          <input type="number" id="dcVoltage" value="3" step="0.1" min="0.1" max="100" />
+          <input type="number" id="dcVoltage" value="2.5" step="0.1" min="0.1" max="100" />
         </div>
 
         <div class="form-group">
@@ -596,10 +596,25 @@
         </div>
       </div>
 
-      <!-- 5. Layer Visibility & Overlays -->
+      <!-- 5. Hall Sensor Placement Suggestion -->
       <div>
         <div class="section-title">
-          <span>5. Overlays &amp; Visibility</span>
+          <span>5. Hall Sensor Placement</span>
+        </div>
+
+        <div style="font-size: 0.7rem; color: var(--muted); margin-bottom: 0.3rem;">
+          120° mechanical spacing, each sensor centered in the gap between two coils to avoid near-field noise from a coil trace directly underneath.
+        </div>
+
+        <div style="font-size: 0.68rem; color: var(--muted); line-height: 1.5;" id="hallAnglesHint">
+          HU 30.0°→θe 120° · HV 150.0°→θe 240° · HW 270.0°→θe 0°<br>4 pole pairs
+        </div>
+      </div>
+
+      <!-- 6. Layer Visibility & Overlays -->
+      <div>
+        <div class="section-title">
+          <span>6. Overlays &amp; Visibility</span>
         </div>
         <div class="layer-pills" id="layerPills">
           <span class="layer-pill active" data-layer="L1"><span class="dot" style="background:var(--l1);"></span> L1 Top</span>
@@ -607,6 +622,7 @@
           <span class="layer-pill active" data-layer="VIAS"><span class="dot" style="background:var(--via);"></span> Center Via</span>
           <span class="layer-pill active" data-layer="MAGNETS" id="pillMagnets"><span class="dot" style="background:var(--mag-n);"></span> Magnets</span>
           <span class="layer-pill active" data-layer="PHASES" id="pillPhases"><span class="dot" style="background:#a855f7;"></span> Phase A-B-C</span>
+          <span class="layer-pill active" data-layer="HALL" id="pillHall"><span class="dot" style="background:#c084fc;"></span> Hall Sensors</span>
         </div>
       </div>
 
@@ -656,6 +672,7 @@
           <div class="legend-item"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--l2);"></span> L2 Bottom (Outward Spiral from Center Via)</div>
           <div class="legend-item"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--via);"></span> Center Via (r=17.5mm, θ=0°)</div>
           <div class="legend-item" id="legMag"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:var(--mag-n);"></span> Rotor Magnets (8× Ø10mm N-S)</div>
+          <div class="legend-item" id="legHall"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:#c084fc;"></span> <span id="legHallText">Hall Sensors: HU 30.0° · HV 150.0° · HW 270.0°</span></div>
         </div>
 
         <div class="coords-overlay" id="coordsOverlay">X: 0.00 mm | Y: 0.00 mm | Pitch: Ø35.0 mm</div>
@@ -762,10 +779,14 @@
   const dcVoltage = $('dcVoltage');
   const ambientTemp = $('ambientTemp');
   const currentLimit = $('currentLimit');
+  const hallAnglesHint = $('hallAnglesHint');
   const layerPills = $('layerPills');
   const pillMagnets = $('pillMagnets');
   const pillPhases = $('pillPhases');
+  const pillHall = $('pillHall');
   const legMag = $('legMag');
+  const legHall = $('legHall');
+  const legHallText = $('legHallText');
   const btnExportDxf = $('btnExportDxf');
   const btnExportJson = $('btnExportJson');
   const btnLoadJson = $('btnLoadJson');
@@ -800,10 +821,10 @@
   // Application State (2-Layer Dedicated)
   const state = {
     shape: 'trapezoidal', // 'trapezoidal' | 'circular'
-    rotorConfig: 'dual',  // 'dual' | 'single'
+    rotorConfig: 'single', // 'dual' | 'single'
     layers: 2,            // 2 layers only
     focusSingleCoil: false,
-    visibleLayers: { L1: true, L2: true, VIAS: true, MAGNETS: true, PHASES: true },
+    visibleLayers: { L1: true, L2: true, VIAS: true, MAGNETS: true, PHASES: true, HALL: true },
     zoom: 1,
     panX: 0,
     panY: 0,
@@ -849,6 +870,9 @@
       pill.classList.toggle('inactive', !state.visibleLayers[layer]);
       if (layer === 'MAGNETS' && legMag) {
         legMag.style.display = state.visibleLayers[layer] ? 'flex' : 'none';
+      }
+      if (layer === 'HALL' && legHall) {
+        legHall.style.display = state.visibleLayers[layer] ? 'flex' : 'none';
       }
       render();
     });
@@ -1161,12 +1185,51 @@
       });
     }
 
+    // Hall Sensor Placement Suggestion: 120° mechanical spacing, with each
+    // sensor centered in the gap between two adjacent coils (rather than
+    // directly on top of one) so it senses rotor flux without picking up
+    // near-field noise from the coil trace directly beneath it. The first
+    // sensor sits in the gap next to Coil 1 (offset = half a coil pitch =
+    // 180°/N); the other two are placed 120° and 240° mechanical from it.
+    // This only yields valid 120°-electrical-spaced commutation when
+    // pole-pairs is not a multiple of 3 (flagged as degenerate below).
+    const polePairs = Math.max(1, Math.floor(nMag / 2));
+    const hallGapCenterDeg = 180 / N;
+    const hallMechAngles = [hallGapCenterDeg, hallGapCenterDeg + 120, hallGapCenterDeg + 240];
+    const hallSensors = generateHallSensors(rMid, hallMechAngles, polePairs);
+
+    const sortedElec = hallSensors.map(hs => hs.elecDeg).slice().sort((a, b) => a - b);
+    const hallElecGaps = sortedElec.map((a, i) => {
+      const next = sortedElec[(i + 1) % sortedElec.length] + (i === sortedElec.length - 1 ? 360 : 0);
+      return next - a;
+    });
+    const hallDegenerate = Math.min(...hallElecGaps) < 1;
+
     return {
       dOut, dIn, rOut, rIn, dPitch, rMid, N, nMag, dMag,
       userTurns, maxTurns, layersCount, stators, magnets,
       singleCoilBounds, coilTotalLengthMm: baseCoil.totalLength,
-      w, s, edge, vDrill, vPad, rMax, rMin
+      w, s, edge, vDrill, vPad, rMax, rMin,
+      polePairs, hallSensors, hallDegenerate
     };
+  }
+
+  // Hall Sensor Placement Suggestion Generator
+  function generateHallSensors(rMid, mechAnglesDeg, polePairs) {
+    const labels = ['HU', 'HV', 'HW'];
+    return mechAnglesDeg.map((angleDeg, i) => {
+      const angleRad = angleDeg * Math.PI / 180;
+      let elecDeg = (angleDeg * polePairs) % 360;
+      if (elecDeg < 0) elecDeg += 360;
+      return {
+        label: labels[i],
+        angleDeg,
+        angleRad,
+        elecDeg,
+        x: rMid * Math.cos(angleRad),
+        y: rMid * Math.sin(angleRad)
+      };
+    });
   }
 
   // True 4-Sided Non-Intersecting Trapezoidal Coil Path Generator (2 Layers with Center Via)
@@ -1297,7 +1360,7 @@
 
   // Electrical & Thermal Calculations
   function computeElectrical(geo) {
-    const vDc = Math.max(0.01, parseFloat(dcVoltage.value) || 3.0);
+    const vDc = Math.max(0.01, parseFloat(dcVoltage.value) || 2.5);
     const copperUm = parseFloat(copperWeight.value) || 35;
     const amb = parseFloat(ambientTemp.value) || 25;
     const driverCurrentLimit = Math.max(0, parseFloat(currentLimit.value) || 0);
@@ -1376,7 +1439,7 @@
     // Airgap, Magnetic Circuit & Torque Estimation
     const airgapMm = Math.max(0.1, parseFloat(airgap.value) || 1.0);
     const magGrd = magnetGrade.value || 'N52';
-    const rotorCfg = state.rotorConfig || 'dual';
+    const rotorCfg = state.rotorConfig || 'single';
 
     const brMap = { N52: 1.44, N50: 1.40, N48: 1.38, N42: 1.30, N35: 1.18 };
     const br = brMap[magGrd] || 1.44;
@@ -1534,6 +1597,18 @@
     statusBadgeContainer.innerHTML = `<div class="status-badge ${badgeClass}"><span>${icon}</span> <span>${msg}</span></div>`;
     statorSummaryText.textContent = `Ø${state.geometry.dOut}mm · pole coverage ${ele.poleArcCoverage.toFixed(2)} · kw ${ele.kw.toFixed(2)} · θth ${ele.thermalResistance.toFixed(1)}°C/W @ ${vLabel}`;
 
+    // Hall Sensor Placement Suggestion Text
+    const hs = state.geometry.hallSensors;
+    if (hs && hs.length === 3) {
+      const hallDetailLine = hs.map(s => `${s.label} ${s.angleDeg.toFixed(1)}°→θe ${s.elecDeg.toFixed(0)}°`).join(' · ');
+      const hallShortLine = hs.map(s => `${s.label} ${s.angleDeg.toFixed(1)}°`).join(' · ');
+      const warnLine = state.geometry.hallDegenerate
+        ? '<br><span style="color:var(--accent-danger);">⚠ Degenerate: pole pairs multiple of 3 collapses sensors electrically</span>'
+        : '';
+      hallAnglesHint.innerHTML = `${hallDetailLine}<br>${state.geometry.polePairs} pole pairs${warnLine}`;
+      legHallText.textContent = `Hall Sensors: ${hallShortLine}`;
+    }
+
     render();
   }
 
@@ -1676,6 +1751,53 @@
         ctx.fillText(mag.pole, sc.x, sc.y);
       });
     }
+
+    // Render Hall Sensor Placement Suggestion Overlay
+    if (state.visibleLayers.HALL && !state.focusSingleCoil && geo.hallSensors) {
+      const hallColor = '#c084fc';
+      geo.hallSensors.forEach(hs => {
+        const inner = toScreen({ x: hs.x, y: hs.y });
+        const outer = toScreen({
+          x: (geo.rOut + 4) * Math.cos(hs.angleRad),
+          y: (geo.rOut + 4) * Math.sin(hs.angleRad)
+        });
+        const labelSc = toScreen({
+          x: (geo.rOut + 7.5) * Math.cos(hs.angleRad),
+          y: (geo.rOut + 7.5) * Math.sin(hs.angleRad)
+        });
+
+        // Leader line from suggested sensor position out to its label
+        ctx.strokeStyle = hallColor;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath();
+        ctx.moveTo(inner.x, inner.y);
+        ctx.lineTo(outer.x, outer.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Sensor marker (diamond) at the suggested placement radius
+        const size = Math.max(3, 1.6 * scale);
+        ctx.fillStyle = hallColor;
+        ctx.strokeStyle = '#f5f3ff';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(inner.x, inner.y - size);
+        ctx.lineTo(inner.x + size, inner.y);
+        ctx.lineTo(inner.x, inner.y + size);
+        ctx.lineTo(inner.x - size, inner.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Label (HU / HV / HW)
+        ctx.fillStyle = hallColor;
+        ctx.font = `bold ${Math.max(9, Math.min(13, 10 * scale * 0.4))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(hs.label, labelSc.x, labelSc.y);
+      });
+    }
   }
 
   // DXF Export (2-Layer Format)
@@ -1720,6 +1842,13 @@
       });
     }
 
+    // Hall Sensor Placement Suggestion (HU/HV/HW)
+    if (state.visibleLayers.HALL && geo.hallSensors) {
+      geo.hallSensors.forEach(hs => {
+        add(0, 'CIRCLE', 8, `HALL_SENSOR_${hs.label}`, 10, hs.x.toFixed(4), 20, hs.y.toFixed(4), 30, '0.0', 40, '1.0000');
+      });
+    }
+
     add(0, 'ENDSEC', 0, 'EOF');
     const dxfString = lines.join('\r\n') + '\r\n';
 
@@ -1751,7 +1880,7 @@
         airgap: parseFloat(airgap.value) || 1.0,
         pcbThickness: parseFloat(pcbThickness.value) || 1.0,
         magnetGrade: magnetGrade.value || 'N52',
-        rotorConfig: state.rotorConfig || 'dual',
+        rotorConfig: state.rotorConfig || 'single',
         turnsPerLayer: parseInt(turnsPerLayer.value, 10) || 27,
         traceWidth: parseFloat(traceWidth.value) || 0.127,
         traceSpacing: parseFloat(traceSpacing.value) || 0.127,
@@ -1759,7 +1888,7 @@
         copperWeight: parseFloat(copperWeight.value) || 35,
         viaDrill: parseFloat(viaDrill.value) || 0.25,
         viaPad: parseFloat(viaPad.value) || 0.5,
-        dcVoltage: parseFloat(dcVoltage.value) || 3,
+        dcVoltage: parseFloat(dcVoltage.value) || 2.5,
         ambientTemp: parseFloat(ambientTemp.value) || 25,
         currentLimit: parseFloat(currentLimit.value) || 0
       }
