@@ -27,6 +27,13 @@
     .filename { color:var(--primary); font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .summary { margin-top:.25rem; font-size:.82rem; }
     .buttons { display:flex; gap:.5rem; flex-shrink:0; }
+    .layer-legend { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:.35rem; margin-bottom:.6rem; }
+    .layer-legend.hidden { display:none; }
+    .layer-chip { display:inline-flex; align-items:center; gap:.35rem; background:#0b1120; border:1px solid var(--border); border-radius:9999px; padding:.2rem .55rem; font-size:.72rem; font-weight:600; cursor:pointer; user-select:none; transition:border-color .2s, opacity .2s; }
+    .layer-chip:hover { border-color:var(--primary); }
+    .layer-chip.inactive { opacity:.4; }
+    .layer-chip .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .layer-chip .count { color:var(--muted); font-weight:normal; }
     button { border:0; border-radius:6px; padding:.55rem .85rem; background:#0284c7; color:white; font-family:inherit; font-size:.85rem; font-weight:600; cursor:pointer; }
     button:hover:not(:disabled) { background:var(--primary); color:var(--bg); }
     button:disabled { background:var(--border); color:var(--muted); cursor:not-allowed; }
@@ -50,6 +57,7 @@
         <div class="file-info"><div class="filename" id="fileName">DXF preview</div><div class="summary" id="fileSummary">Dimensions and entity count will appear here.</div></div>
         <div class="buttons"><button id="zoomOut" disabled>−</button><button id="fit" disabled>Fit drawing</button><button id="zoomIn" disabled>+</button></div>
       </div>
+      <div class="layer-legend hidden" id="layerLegend"></div>
       <div class="canvas-wrap" id="canvasWrap"><canvas id="canvas"></canvas><div class="empty" id="empty">Awaiting DXF file…</div></div>
       <div class="coordinates" id="coordinates">X: — &nbsp; Y: —</div>
     </section>
@@ -59,11 +67,15 @@
     'use strict';
     const $ = id => document.getElementById(id);
     const dropZone=$('dropZone'), fileInput=$('fileInput'), status=$('status'), fileName=$('fileName'), fileSummary=$('fileSummary');
-    const wrap=$('canvasWrap'), canvas=$('canvas'), ctx=canvas.getContext('2d'), empty=$('empty'), coordinates=$('coordinates');
+    const wrap=$('canvasWrap'), canvas=$('canvas'), ctx=canvas.getContext('2d'), empty=$('empty'), coordinates=$('coordinates'), layerLegend=$('layerLegend');
     const fitBtn=$('fit'), zoomIn=$('zoomIn'), zoomOut=$('zoomOut');
     const IDENT={a:1,b:0,c:0,d:1,e:0,f:0};
     const UNITS={0:['Unitless','units'],1:['Inches','in'],2:['Feet','ft'],4:['Millimetres','mm'],5:['Centimetres','cm'],6:['Metres','m'],9:['Mils','mil'],10:['Yards','yd'],14:['Decimetres','dm']};
-    const state={paths:[],bounds:null,unit:UNITS[0],zoom:1,panX:0,panY:0,drag:false,dragX:0,dragY:0,unsupported:new Set(),entityCount:0,fileName:'drawing'};
+    // Recognized names from the PCB Motor Coil Designer's DXF export get fixed,
+    // meaningful colors; any other layer name falls back to the cycling palette.
+    const KNOWN_LAYER_COLORS={BOARD_OUTLINE:'#64748b',PITCH_CIRCLE:'#475569',COIL_L1:'#f43f5e',COIL_L2:'#38bdf8',VIA_PADS:'#fbbf24',VIA_DRILL:'#f59e0b',ROTOR_MAGNETS_N:'#ef4444',ROTOR_MAGNETS_S:'#3b82f6',HALL_SENSOR_HU:'#c084fc',HALL_SENSOR_HV:'#a855f7',HALL_SENSOR_HW:'#7c3aed',SVG:'#f43f5e'};
+    const LAYER_PALETTE=['#f43f5e','#38bdf8','#fbbf24','#10b981','#a855f7','#ec4899','#f97316','#22d3ee','#84cc16','#eab308'];
+    const state={paths:[],bounds:null,unit:UNITS[0],zoom:1,panX:0,panY:0,drag:false,dragX:0,dragY:0,unsupported:new Set(),entityCount:0,fileName:'drawing',layers:{}};
 
     dropZone.onclick=()=>fileInput.click();
     fileInput.onchange=e=>e.target.files[0]&&readFile(e.target.files[0]);
@@ -92,6 +104,7 @@
       flatten(entities,dxf.blocks||{},IDENT,0);
       state.bounds=getBounds();
       if(!state.paths.length||!state.bounds)throw Error(`No supported drawable geometry was found.${state.unsupported.size?' Unsupported: '+[...state.unsupported].join(', '):''}`);
+      buildLayerLegend();
       state.fileName=name;fileName.textContent=name; updateSummary(); empty.classList.add('hidden');
       [fitBtn,zoomIn,zoomOut].forEach(b=>b.disabled=false); fitDrawing();
       setStatus(`Loaded with ${parser}.${state.unsupported.size?' Skipped: '+[...state.unsupported].join(', ')+'.':''}`);
@@ -115,6 +128,7 @@
 
       state.bounds=getBounds();
       if(!state.paths.length||!state.bounds)throw Error('No supported SVG geometry was found.');
+      buildLayerLegend();
       fileName.textContent=name;updateSummary();empty.classList.add('hidden');
       [fitBtn,zoomIn,zoomOut].forEach(b=>b.disabled=false);fitDrawing();
       setStatus(`Loaded SVG.${state.unsupported.size?' Skipped: '+[...state.unsupported].join(', ')+'.':''}`);
@@ -287,6 +301,38 @@
     }
 
     function updateSummary(){const b=state.bounds,d=Math.max(b.width,b.height)<10?3:2;fileSummary.textContent=`${fmt(b.width,d)} × ${fmt(b.height,d)} ${state.unit[1]} · ${state.entityCount} entities · ${state.paths.length} drawable paths · ${state.unit[0]}`}
+
+    function buildLayerLegend(){
+      const names=[...new Set(state.paths.map(p=>p.layer||'0'))];
+      const prevLayers=state.layers,layers={};let unknownIdx=0;
+      names.forEach(name=>{
+        const prev=prevLayers[name];
+        const color=KNOWN_LAYER_COLORS[name]||(prev&&prev.color)||LAYER_PALETTE[unknownIdx++%LAYER_PALETTE.length];
+        layers[name]={color,visible:prev?prev.visible:true};
+      });
+      state.layers=layers;
+      renderLayerLegend(names);
+    }
+
+    function renderLayerLegend(names){
+      if(!names.length){layerLegend.classList.add('hidden');layerLegend.innerHTML='';return}
+      layerLegend.classList.remove('hidden');
+      const counts={};state.paths.forEach(p=>{const l=p.layer||'0';counts[l]=(counts[l]||0)+1});
+      layerLegend.innerHTML=names.map(name=>{
+        const info=state.layers[name];
+        return `<span class="layer-chip${info.visible?'':' inactive'}" data-layer="${escapeHtml(name)}"><span class="dot" style="background:${info.color}"></span>${escapeHtml(name)} <span class="count">${counts[name]||0}</span></span>`;
+      }).join('');
+      layerLegend.querySelectorAll('.layer-chip').forEach(chip=>{
+        chip.onclick=()=>{
+          const name=chip.getAttribute('data-layer'),info=state.layers[name];
+          info.visible=!info.visible;
+          chip.classList.toggle('inactive',!info.visible);
+          render();
+        };
+      });
+    }
+
+    function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
     function setStatus(message,error=false){status.textContent=message;status.classList.toggle('error',error)}
     function resize(){const r=wrap.getBoundingClientRect(),d=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));render()}
     function fitDrawing(){if(!state.bounds)return;const r=wrap.getBoundingClientRect(),m=50,w=Math.max(state.bounds.width,1e-9),h=Math.max(state.bounds.height,1e-9);state.zoom=Math.max(1e-6,Math.min((r.width-m*2)/w,(r.height-m*2)/h));state.panX=-state.bounds.centerX*state.zoom;state.panY=state.bounds.centerY*state.zoom;render()}
@@ -296,8 +342,13 @@
     function render(){
       const r=wrap.getBoundingClientRect(),d=window.devicePixelRatio||1;ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle='#020617';ctx.fillRect(0,0,r.width,r.height);if(!state.paths.length)return;
       const o=toScreen({x:0,y:0});ctx.strokeStyle='rgba(148,163,184,.18)';ctx.lineWidth=1;ctx.beginPath();if(o.x>=0&&o.x<=r.width){ctx.moveTo(o.x,0);ctx.lineTo(o.x,r.height)}if(o.y>=0&&o.y<=r.height){ctx.moveTo(0,o.y);ctx.lineTo(r.width,o.y)}ctx.stroke();
-      ctx.strokeStyle='#f43f5e';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.lineJoin='round';
-      state.paths.forEach(path=>{const first=toScreen(path.points[0]);ctx.beginPath();ctx.moveTo(first.x,first.y);for(let i=1;i<path.points.length;i++){const p=toScreen(path.points[i]);ctx.lineTo(p.x,p.y)}if(path.closed)ctx.closePath();ctx.stroke()});
+      ctx.lineWidth=1.4;ctx.lineCap='round';ctx.lineJoin='round';
+      state.paths.forEach(path=>{
+        const info=state.layers[path.layer||'0'];
+        if(info&&!info.visible)return;
+        ctx.strokeStyle=(info&&info.color)||'#f43f5e';
+        const first=toScreen(path.points[0]);ctx.beginPath();ctx.moveTo(first.x,first.y);for(let i=1;i<path.points.length;i++){const p=toScreen(path.points[i]);ctx.lineTo(p.x,p.y)}if(path.closed)ctx.closePath();ctx.stroke();
+      });
       const tl=toScreen({x:state.bounds.minX,y:state.bounds.maxY}),br=toScreen({x:state.bounds.maxX,y:state.bounds.minY});ctx.strokeStyle='rgba(56,189,248,.35)';ctx.setLineDash([4,4]);ctx.strokeRect(tl.x,tl.y,br.x-tl.x,br.y-tl.y);ctx.setLineDash([]);
     }
 
