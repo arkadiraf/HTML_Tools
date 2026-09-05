@@ -46,3 +46,9 @@ A collection of high-performance, client-side, zero-install web tools designed f
 - Open individual Gerber and Excellon drill files, multiple files at once, or a complete PCB job packaged as a ZIP archive.
 - Toggle and inspect color-coded copper, mask, silkscreen, paste, outline, and drill layers entirely in the browser.
 - View board dimensions, cursor coordinates, layer summaries, and rendered primitive counts with pan, zoom, and fit-to-board controls.
+
+### 9. [RCFilterCalculator.html](RCFilterCalculator.html)
+**RC Filter & Divider Calculator**
+- Solve resistance, capacitance, or cutoff frequency for single-pole low-pass and high-pass RC filters with automatic unit scaling.
+- Analyze RC filters combined with resistive voltage dividers, including divider ratio, effective resistance, and output voltage.
+- See live formulas, calculated values, and circuit diagrams entirely in the browser.

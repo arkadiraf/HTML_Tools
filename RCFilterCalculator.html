@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RC Filter &amp; Divider Calculator</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --border:#334155; --primary:#38bdf8; --accent:#f43f5e; --text:#f8fafc; --muted:#94a3b8; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:clamp(.75rem,2vh,1.5rem); min-height:100vh; min-height:100dvh; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+  .container { width:100%; max-width:1100px; display:flex; flex-direction:column; }
+  header { flex:0 0 auto; text-align:center; margin-bottom:clamp(.5rem,1.5vh,1rem); }
+  h1 { margin:0 0 .35rem; font-size:clamp(1.5rem,3.2vh,2.1rem); letter-spacing:-.5px; }
+  h1 span { color:var(--primary); }
+  .subtitle { margin:0; color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:clamp(.75rem,1.8vh,1.1rem); }
+  h2 { margin:0 0 .6rem; font-size:1rem; color:var(--text); }
+  .controls { display:flex; flex-wrap:wrap; gap:1.25rem; margin-bottom:.75rem; align-items:center; }
+  .control-group { display:flex; align-items:center; gap:.6rem; }
+  .control-label { color:var(--muted); font-size:.82rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .pill-group { display:flex; gap:.4rem; }
+  .pill { border:1px solid var(--border); background:#0b1120; color:var(--text); border-radius:9999px; padding:.4rem .9rem; font-size:.85rem; font-weight:600; cursor:pointer; transition:.15s; }
+  .pill:hover { border-color:var(--primary); }
+  .pill.active { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .main { flex:1 1 auto; display:flex; gap:1rem; min-height:0; }
+  .values-card { flex:1 1 340px; min-width:300px; display:flex; flex-direction:column; }
+  .diagram-card { flex:1.3 1 420px; display:flex; flex-direction:column; min-width:320px; }
+  .hint { margin:-.3rem 0 .7rem; font-size:.78rem; color:var(--muted); }
+  .fields { display:flex; flex-direction:column; gap:.6rem; }
+  .fields.hidden { display:none; }
+  .field-row { display:flex; align-items:center; gap:.6rem; }
+  .field-label { flex:0 0 96px; display:flex; flex-direction:column; line-height:1.15; }
+  .field-name { font-size:.78rem; color:var(--muted); }
+  .field-sym { font-weight:700; font-size:.95rem; }
+  .field-input { flex:1 1 auto; display:flex; gap:.35rem; min-width:0; }
+  .field-input input { width:100%; min-width:0; background:#0b1120; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:.45rem .5rem; font:600 .92rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .field-input input:disabled { color:var(--muted); background:#0b1120a0; }
+  .field-input input:focus { outline:none; border-color:var(--primary); }
+  .field-input select { background:#0b1120; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:.45rem .35rem; font-size:.82rem; }
+  .field-input select:disabled { color:var(--muted); }
+  .lock-btn { flex:0 0 auto; border:1px solid var(--border); background:#0b1120; color:var(--muted); border-radius:6px; width:2.1rem; height:2.1rem; font-size:1rem; cursor:pointer; transition:.15s; }
+  .lock-btn:hover { border-color:var(--primary); }
+  .lock-btn.active { background:var(--primary); border-color:var(--primary); color:var(--bg); }
+  .divider-outputs { margin-top:.85rem; border-top:1px dashed var(--border); padding-top:.7rem; display:flex; flex-direction:column; gap:.4rem; }
+  .output-row { display:flex; justify-content:space-between; align-items:baseline; gap:.5rem; }
+  .output-label { color:var(--muted); font-size:.82rem; }
+  .output-value { font:700 1rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--primary); }
+  .output-row.secondary .output-value { color:var(--text); font-size:.88rem; font-weight:600; }
+  .output-row.custom-vin .output-label { display:flex; align-items:center; gap:.35rem; }
+  .inline-input { width:3.4rem; background:#0b1120; border:1px solid var(--border); color:var(--text); border-radius:5px; padding:.2rem .35rem; font:600 .82rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .inline-input:focus { outline:none; border-color:var(--primary); }
+  .formula { margin-top:auto; padding-top:.75rem; font:.8rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--muted); text-align:center; border-top:1px solid var(--border); }
+  .diagram-wrap { flex:1 1 auto; display:flex; align-items:center; justify-content:center; background:#020617; border:1px solid var(--border); border-radius:6px; min-height:260px; padding:.5rem; }
+  .diagram-wrap svg { width:100%; height:auto; max-width:460px; }
+  .diagram-wrap svg.hidden { display:none; }
+  .wire { stroke:var(--muted); stroke-width:2; fill:none; }
+  .comp { stroke:var(--text); stroke-width:2; fill:none; }
+  .plate { stroke:var(--primary); stroke-width:3; }
+  .node { fill:var(--primary); }
+  .gnd { stroke:var(--muted); stroke-width:2; }
+  .lbl { fill:var(--muted); font-size:13px; font-family:inherit; text-anchor:middle; }
+  .lbl.side { text-anchor:start; }
+  .val { fill:var(--text); font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-weight:600; text-anchor:middle; }
+  .io { fill:var(--primary); font-weight:700; font-size:14px; }
+  .fc { fill:var(--primary); font-size:14px; font-weight:700; text-anchor:middle; }
+  @media (max-width:760px) {
+    body { min-height:auto; overflow:auto; }
+    .main { flex-direction:column; }
+    .diagram-wrap { min-height:220px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>RC Filter <span>&amp; Divider</span> Calculator</h1>
+    <p class="subtitle">Solve resistor, capacitor and cutoff frequency for a single-pole RC filter, or add a resistive divider</p>
+  </header>
+
+  <div class="controls card">
+    <div class="control-group">
+      <span class="control-label">Filter type</span>
+      <div class="pill-group" id="filterTypeGroup">
+        <button class="pill active" data-filter="lpf">Low-pass</button>
+        <button class="pill" data-filter="hpf">High-pass</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Circuit</span>
+      <div class="pill-group" id="circuitGroup">
+        <button class="pill active" data-circuit="simple">Simple RC</button>
+        <button class="pill" data-circuit="divider">Voltage divider + RC</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <section class="card values-card">
+      <h2>Values</h2>
+
+      <div id="simpleFields" class="fields">
+        <p class="hint">Pick which value to fix — the other two recalculate live as you edit them.</p>
+        <div class="field-row" data-field="r">
+          <div class="field-label"><span class="field-name">Resistor</span><span class="field-sym">R</span></div>
+          <div class="field-input"><input type="number" id="rNum" step="any" min="0"><select id="rUnit"></select></div>
+          <button class="lock-btn" data-lock="r" title="Fix R">🔓</button>
+        </div>
+        <div class="field-row" data-field="c">
+          <div class="field-label"><span class="field-name">Capacitor</span><span class="field-sym">C</span></div>
+          <div class="field-input"><input type="number" id="cNum" step="any" min="0"><select id="cUnit"></select></div>
+          <button class="lock-btn active" data-lock="c" title="Fix C">🔒</button>
+        </div>
+        <div class="field-row" data-field="f">
+          <div class="field-label"><span class="field-name">Cutoff</span><span class="field-sym">F<sub>c</sub></span></div>
+          <div class="field-input"><input type="number" id="fNum" step="any" min="0"><select id="fUnit"></select></div>
+          <button class="lock-btn" data-lock="f" title="Fix Fc">🔓</button>
+        </div>
+      </div>
+
+      <div id="dividerFields" class="fields hidden">
+        <p class="hint">All three values are direct inputs — cutoff frequency and divider ratio are calculated.</p>
+        <div class="field-row" data-field="r1">
+          <div class="field-label"><span class="field-name">Top</span><span class="field-sym">R1</span></div>
+          <div class="field-input"><input type="number" id="r1Num" step="any" min="0"><select id="r1Unit"></select></div>
+        </div>
+        <div class="field-row" data-field="r2">
+          <div class="field-label"><span class="field-name">Bottom</span><span class="field-sym">R2</span></div>
+          <div class="field-input"><input type="number" id="r2Num" step="any" min="0"><select id="r2Unit"></select></div>
+        </div>
+        <div class="field-row" data-field="dc">
+          <div class="field-label"><span class="field-name">Capacitor</span><span class="field-sym">C</span></div>
+          <div class="field-input"><input type="number" id="dcNum" step="any" min="0"><select id="dcUnit"></select></div>
+        </div>
+        <div class="divider-outputs">
+          <div class="output-row"><span class="output-label">Cutoff frequency</span><span class="output-value" id="divFcOut">—</span></div>
+          <div class="output-row"><span class="output-label">Divider ratio (Vout / Vin)</span><span class="output-value" id="divRatioOut">—</span></div>
+          <div class="output-row secondary"><span class="output-label" id="divResistLabel">R1 ‖ R2</span><span class="output-value" id="divResistOut">—</span></div>
+          <div class="output-row secondary"><span class="output-label">Vout @ 5 V in</span><span class="output-value" id="divVout5">—</span></div>
+          <div class="output-row secondary"><span class="output-label">Vout @ 3.3 V in</span><span class="output-value" id="divVout33">—</span></div>
+          <div class="output-row secondary custom-vin"><span class="output-label">Vout @ <input type="number" id="customVinNum" value="12" step="any" min="0" class="inline-input"> V in</span><span class="output-value" id="divVoutCustom">—</span></div>
+        </div>
+      </div>
+
+      <div class="formula" id="formulaText"></div>
+    </section>
+
+    <section class="card diagram-card">
+      <h2>Circuit</h2>
+      <div class="diagram-wrap">
+        <!-- Simple LPF -->
+        <svg id="diag-simple-lpf" viewBox="0 0 460 240" xmlns="http://www.w3.org/2000/svg">
+          <text class="fc" id="sl-fc" x="230" y="20">Fc = —</text>
+          <text class="io" x="12" y="64">Vin</text>
+          <line class="wire" x1="40" y1="60" x2="110" y2="60"/>
+          <rect class="comp" x="110" y="48" width="70" height="24"/>
+          <text class="lbl" x="145" y="40">R</text>
+          <text class="val" id="sl-r" x="145" y="90">—</text>
+          <line class="wire" x1="180" y1="60" x2="250" y2="60"/>
+          <circle class="node" cx="250" cy="60" r="3.5"/>
+          <line class="wire" x1="250" y1="60" x2="420" y2="60"/>
+          <text class="io" x="424" y="64">Vout</text>
+          <line class="wire" x1="250" y1="60" x2="250" y2="104"/>
+          <line class="plate" x1="225" y1="104" x2="275" y2="104"/>
+          <line class="plate" x1="225" y1="116" x2="275" y2="116"/>
+          <line class="wire" x1="250" y1="116" x2="250" y2="170"/>
+          <text class="lbl side" x="290" y="113">C</text>
+          <text class="val" id="sl-c" x="285" y="130">—</text>
+          <line class="gnd" x1="250" y1="170" x2="250" y2="178"/>
+          <line class="gnd" x1="232" y1="178" x2="268" y2="178"/>
+          <line class="gnd" x1="238" y1="186" x2="262" y2="186"/>
+          <line class="gnd" x1="244" y1="194" x2="256" y2="194"/>
+        </svg>
+        <!-- Simple HPF -->
+        <svg id="diag-simple-hpf" viewBox="0 0 460 240" xmlns="http://www.w3.org/2000/svg" class="hidden">
+          <text class="fc" id="sh-fc" x="230" y="20">Fc = —</text>
+          <text class="io" x="12" y="64">Vin</text>
+          <line class="wire" x1="40" y1="60" x2="146" y2="60"/>
+          <line class="plate" x1="150" y1="44" x2="150" y2="76"/>
+          <line class="plate" x1="158" y1="44" x2="158" y2="76"/>
+          <text class="lbl" x="154" y="34">C</text>
+          <text class="val" id="sh-c" x="154" y="97">—</text>
+          <line class="wire" x1="162" y1="60" x2="250" y2="60"/>
+          <circle class="node" cx="250" cy="60" r="3.5"/>
+          <line class="wire" x1="250" y1="60" x2="420" y2="60"/>
+          <text class="io" x="424" y="64">Vout</text>
+          <line class="wire" x1="250" y1="60" x2="250" y2="105"/>
+          <rect class="comp" x="238" y="105" width="24" height="65"/>
+          <text class="lbl side" x="280" y="134">R</text>
+          <text class="val" id="sh-r" x="280" y="151">—</text>
+          <line class="gnd" x1="250" y1="170" x2="250" y2="178"/>
+          <line class="gnd" x1="232" y1="178" x2="268" y2="178"/>
+          <line class="gnd" x1="238" y1="186" x2="262" y2="186"/>
+          <line class="gnd" x1="244" y1="194" x2="256" y2="194"/>
+        </svg>
+        <!-- Divider LPF -->
+        <svg id="diag-divider-lpf" viewBox="0 0 460 240" xmlns="http://www.w3.org/2000/svg" class="hidden">
+          <text class="fc" id="dl-fc" x="230" y="16">Fc = —</text>
+          <text class="fc" id="dl-ratio" x="230" y="32" style="font-size:12.5px">Ratio = —</text>
+          <text class="io" x="12" y="64">Vin</text>
+          <line class="wire" x1="40" y1="60" x2="90" y2="60"/>
+          <rect class="comp" x="90" y="48" width="70" height="24"/>
+          <text class="lbl" x="125" y="40">R1</text>
+          <text class="val" id="dl-r1" x="125" y="90">—</text>
+          <line class="wire" x1="160" y1="60" x2="230" y2="60"/>
+          <circle class="node" cx="230" cy="60" r="3.5"/>
+          <line class="wire" x1="230" y1="60" x2="420" y2="60"/>
+          <text class="io" x="424" y="64">Vout</text>
+          <line class="wire" x1="230" y1="60" x2="230" y2="95"/>
+          <line class="wire" x1="190" y1="95" x2="270" y2="95"/>
+          <line class="wire" x1="190" y1="95" x2="190" y2="120"/>
+          <rect class="comp" x="178" y="120" width="24" height="60"/>
+          <text class="lbl side" x="150" y="146" style="text-anchor:end">R2</text>
+          <text class="val" id="dl-r2" x="190" y="196">—</text>
+          <line class="wire" x1="190" y1="180" x2="190" y2="205"/>
+          <line class="wire" x1="270" y1="95" x2="270" y2="130"/>
+          <line class="plate" x1="255" y1="130" x2="285" y2="130"/>
+          <line class="plate" x1="255" y1="142" x2="285" y2="142"/>
+          <line class="wire" x1="270" y1="142" x2="270" y2="205"/>
+          <text class="lbl side" x="292" y="140">C</text>
+          <text class="val" id="dl-c" x="292" y="157">—</text>
+          <line class="wire" x1="190" y1="205" x2="270" y2="205"/>
+          <line class="gnd" x1="230" y1="205" x2="230" y2="213"/>
+          <line class="gnd" x1="212" y1="213" x2="248" y2="213"/>
+          <line class="gnd" x1="218" y1="221" x2="242" y2="221"/>
+          <line class="gnd" x1="224" y1="229" x2="236" y2="229"/>
+        </svg>
+        <!-- Divider HPF -->
+        <svg id="diag-divider-hpf" viewBox="0 0 460 240" xmlns="http://www.w3.org/2000/svg" class="hidden">
+          <text class="fc" id="dh-fc" x="230" y="16">Fc = —</text>
+          <text class="fc" id="dh-ratio" x="230" y="32" style="font-size:12.5px">Ratio = —</text>
+          <text class="io" x="12" y="64">Vin</text>
+          <line class="wire" x1="40" y1="60" x2="96" y2="60"/>
+          <line class="plate" x1="100" y1="44" x2="100" y2="76"/>
+          <line class="plate" x1="108" y1="44" x2="108" y2="76"/>
+          <text class="lbl" x="104" y="34">C</text>
+          <text class="val" id="dh-c" x="104" y="97">—</text>
+          <line class="wire" x1="112" y1="60" x2="130" y2="60"/>
+          <rect class="comp" x="130" y="48" width="70" height="24"/>
+          <text class="lbl" x="165" y="40">R1</text>
+          <text class="val" id="dh-r1" x="165" y="90">—</text>
+          <line class="wire" x1="200" y1="60" x2="260" y2="60"/>
+          <circle class="node" cx="260" cy="60" r="3.5"/>
+          <line class="wire" x1="260" y1="60" x2="420" y2="60"/>
+          <text class="io" x="424" y="64">Vout</text>
+          <line class="wire" x1="260" y1="60" x2="260" y2="105"/>
+          <rect class="comp" x="248" y="105" width="24" height="65"/>
+          <text class="lbl side" x="290" y="134">R2</text>
+          <text class="val" id="dh-r2" x="290" y="151">—</text>
+          <line class="gnd" x1="260" y1="170" x2="260" y2="178"/>
+          <line class="gnd" x1="242" y1="178" x2="278" y2="178"/>
+          <line class="gnd" x1="248" y1="186" x2="272" y2="186"/>
+          <line class="gnd" x1="254" y1="194" x2="266" y2="194"/>
+        </svg>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+
+  const R_UNITS = { 'Ω':1, 'kΩ':1e3, 'MΩ':1e6 };
+  const C_UNITS = { 'pF':1e-12, 'nF':1e-9, 'µF':1e-6, 'mF':1e-3 };
+  const F_UNITS = { 'Hz':1, 'kHz':1e3, 'MHz':1e6 };
+
+  const state = {
+    filterType: 'lpf',
+    circuit: 'simple',
+    lock: 'c',
+    simple: { r: 10000, c: 1e-7, f: 0 },
+    divider: { r1: 10000, r2: 10000, c: 1e-7 },
+    customVin: 12,
+    units: { r:'kΩ', c:'nF', f:'Hz', r1:'kΩ', r2:'kΩ', dc:'nF' }
+  };
+  state.simple.f = 1/(2*Math.PI*state.simple.r*state.simple.c);
+
+  function fmtNum(x){
+    if (!Number.isFinite(x) || x <= 0) return '—';
+    const r = Number(x.toPrecision(4));
+    return r.toString();
+  }
+
+  function autoScale(value, table){
+    const entries = Object.entries(table).sort((a,b)=>a[1]-b[1]);
+    let best = entries[0];
+    for (const e of entries) { if (value >= e[1]) best = e; }
+    return { unit: best[0], scaled: value / best[1] };
+  }
+
+  function fmtAuto(value, table){
+    if (!Number.isFinite(value) || value <= 0) return '—';
+    const { unit, scaled } = autoScale(value, table);
+    return `${fmtNum(scaled)} ${unit}`;
+  }
+
+  function fillUnitSelect(select, table, selected){
+    select.innerHTML = Object.keys(table).map(u => `<option value="${u}"${u===selected?' selected':''}>${u}</option>`).join('');
+  }
+
+  // ---- Simple RC ----
+  function recomputeSimple(edited){
+    const lock = state.lock, s = state.simple;
+    if (edited === lock) return;
+    const other = ['r','c','f'].find(k => k !== lock && k !== edited);
+    if (s.r <= 0 || s.c <= 0 || s.f <= 0) {
+      if (other === 'f') s.f = (s.r>0 && s.c>0) ? 1/(2*Math.PI*s.r*s.c) : 0;
+      return;
+    }
+    if (other === 'f') s.f = 1/(2*Math.PI*s.r*s.c);
+    else if (other === 'r') s.r = 1/(2*Math.PI*s.f*s.c);
+    else if (other === 'c') s.c = 1/(2*Math.PI*s.f*s.r);
+  }
+
+  function renderSimpleInputs(){
+    const s = state.simple, u = state.units;
+    $('rNum').value = fmtNum(s.r / R_UNITS[u.r]);
+    $('cNum').value = fmtNum(s.c / C_UNITS[u.c]);
+    $('fNum').value = fmtNum(s.f / F_UNITS[u.f]);
+    ['r','c','f'].forEach(k => {
+      const locked = state.lock === k;
+      $(k+'Num').disabled = locked;
+      $(k+'Unit').disabled = locked;
+      document.querySelector(`.lock-btn[data-lock="${k}"]`).classList.toggle('active', locked);
+      document.querySelector(`.lock-btn[data-lock="${k}"]`).textContent = locked ? '🔒' : '🔓';
+    });
+  }
+
+  function updateSimpleDiagrams(){
+    const s = state.simple;
+    const rTxt = fmtAuto(s.r, R_UNITS); const cTxt = fmtAuto(s.c, C_UNITS); const fTxt = fmtAuto(s.f, F_UNITS);
+    $('sl-r').textContent = rTxt; $('sl-c').textContent = cTxt; $('sl-fc').textContent = 'Fc = ' + fTxt;
+    $('sh-r').textContent = rTxt; $('sh-c').textContent = cTxt; $('sh-fc').textContent = 'Fc = ' + fTxt;
+  }
+
+  function updateSimpleFormula(){
+    const names = { r:'R', c:'C', f:'Fc' };
+    $('formulaText').textContent = `Fc = 1 / (2π · R · C)   —  ${names[state.lock]} is fixed`;
+  }
+
+  // ---- Voltage divider ----
+  function recomputeDivider(){
+    const d = state.divider;
+    if (d.r1 <= 0 || d.r2 <= 0 || d.c <= 0) { d.fc = 0; d.ratio = 0; return; }
+    const parallel = (d.r1*d.r2)/(d.r1+d.r2);
+    const series = d.r1+d.r2;
+    d.fc = state.filterType === 'lpf' ? 1/(2*Math.PI*parallel*d.c) : 1/(2*Math.PI*series*d.c);
+    d.ratio = d.r2/(d.r1+d.r2);
+    d.effR = state.filterType === 'lpf' ? parallel : series;
+  }
+
+  function renderDividerInputs(){
+    const d = state.divider, u = state.units;
+    $('r1Num').value = fmtNum(d.r1 / R_UNITS[u.r1]);
+    $('r2Num').value = fmtNum(d.r2 / R_UNITS[u.r2]);
+    $('dcNum').value = fmtNum(d.c / C_UNITS[u.dc]);
+    $('divFcOut').textContent = fmtAuto(d.fc, F_UNITS);
+    if (d.ratio > 0) {
+      const db = 20*Math.log10(d.ratio);
+      $('divRatioOut').textContent = `${fmtNum(d.ratio)}  (${db.toFixed(1)} dB)`;
+      $('divVout5').textContent = (d.ratio*5).toFixed(3) + ' V';
+      $('divVout33').textContent = (d.ratio*3.3).toFixed(3) + ' V';
+      $('divVoutCustom').textContent = Number.isFinite(state.customVin) ? (d.ratio*state.customVin).toFixed(3) + ' V' : '—';
+    } else {
+      $('divRatioOut').textContent = '—';
+      $('divVout5').textContent = '—';
+      $('divVout33').textContent = '—';
+      $('divVoutCustom').textContent = '—';
+    }
+    $('divResistLabel').textContent = state.filterType === 'lpf' ? 'R1 ‖ R2' : 'R1 + R2';
+    $('divResistOut').textContent = fmtAuto(d.effR||0, R_UNITS);
+  }
+
+  function updateDividerDiagrams(){
+    const d = state.divider;
+    const r1Txt = fmtAuto(d.r1, R_UNITS); const r2Txt = fmtAuto(d.r2, R_UNITS); const cTxt = fmtAuto(d.c, C_UNITS);
+    const fcTxt = fmtAuto(d.fc, F_UNITS); const ratioTxt = d.ratio>0 ? fmtNum(d.ratio) : '—';
+    $('dl-r1').textContent = r1Txt; $('dl-r2').textContent = r2Txt; $('dl-c').textContent = cTxt;
+    $('dl-fc').textContent = 'Fc = ' + fcTxt; $('dl-ratio').textContent = 'Ratio = ' + ratioTxt;
+    $('dh-r1').textContent = r1Txt; $('dh-r2').textContent = r2Txt; $('dh-c').textContent = cTxt;
+    $('dh-fc').textContent = 'Fc = ' + fcTxt; $('dh-ratio').textContent = 'Ratio = ' + ratioTxt;
+  }
+
+  function updateDividerFormula(){
+    if (state.filterType === 'lpf') {
+      $('formulaText').textContent = `Fc = 1 / (2π · (R1‖R2) · C)     Ratio = R2 / (R1+R2)`;
+    } else {
+      $('formulaText').textContent = `Fc = 1 / (2π · (R1+R2) · C)     Ratio = R2 / (R1+R2)`;
+    }
+  }
+
+  // ---- top level render ----
+  function render(){
+    if (state.circuit === 'simple') {
+      recomputeSimple(state._lastEdited || 'r');
+      renderSimpleInputs();
+      updateSimpleDiagrams();
+      updateSimpleFormula();
+    } else {
+      recomputeDivider();
+      renderDividerInputs();
+      updateDividerDiagrams();
+      updateDividerFormula();
+    }
+    ['diag-simple-lpf','diag-simple-hpf','diag-divider-lpf','diag-divider-hpf'].forEach(id => $(id).classList.add('hidden'));
+    const activeId = `diag-${state.circuit}-${state.filterType}`;
+    $(activeId).classList.remove('hidden');
+  }
+
+  // ---- wiring: unit selects ----
+  fillUnitSelect($('rUnit'), R_UNITS, state.units.r);
+  fillUnitSelect($('cUnit'), C_UNITS, state.units.c);
+  fillUnitSelect($('fUnit'), F_UNITS, state.units.f);
+  fillUnitSelect($('r1Unit'), R_UNITS, state.units.r1);
+  fillUnitSelect($('r2Unit'), R_UNITS, state.units.r2);
+  fillUnitSelect($('dcUnit'), C_UNITS, state.units.dc);
+
+  $('rNum').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.simple.r = v * R_UNITS[state.units.r]; state._lastEdited='r'; render(); } };
+  $('cNum').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.simple.c = v * C_UNITS[state.units.c]; state._lastEdited='c'; render(); } };
+  $('fNum').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.simple.f = v * F_UNITS[state.units.f]; state._lastEdited='f'; render(); } };
+  $('rUnit').onchange = e => { state.units.r = e.target.value; renderSimpleInputs(); };
+  $('cUnit').onchange = e => { state.units.c = e.target.value; renderSimpleInputs(); };
+  $('fUnit').onchange = e => { state.units.f = e.target.value; renderSimpleInputs(); };
+
+  document.querySelectorAll('.lock-btn').forEach(btn => {
+    btn.onclick = () => { state.lock = btn.getAttribute('data-lock'); render(); };
+  });
+
+  $('r1Num').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.divider.r1 = v * R_UNITS[state.units.r1]; render(); } };
+  $('r2Num').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.divider.r2 = v * R_UNITS[state.units.r2]; render(); } };
+  $('dcNum').oninput = e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.divider.c = v * C_UNITS[state.units.dc]; render(); } };
+  $('r1Unit').onchange = e => { state.units.r1 = e.target.value; renderDividerInputs(); };
+  $('r2Unit').onchange = e => { state.units.r2 = e.target.value; renderDividerInputs(); };
+  $('dcUnit').onchange = e => { state.units.dc = e.target.value; renderDividerInputs(); };
+  $('customVinNum').oninput = e => { const v = parseFloat(e.target.value); state.customVin = Number.isFinite(v) ? v : NaN; renderDividerInputs(); };
+
+  document.querySelectorAll('#filterTypeGroup .pill').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#filterTypeGroup .pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.filterType = btn.getAttribute('data-filter');
+      render();
+    };
+  });
+
+  document.querySelectorAll('#circuitGroup .pill').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#circuitGroup .pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.circuit = btn.getAttribute('data-circuit');
+      $('simpleFields').classList.toggle('hidden', state.circuit !== 'simple');
+      $('dividerFields').classList.toggle('hidden', state.circuit !== 'divider');
+      render();
+    };
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
